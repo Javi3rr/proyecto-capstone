@@ -6,6 +6,7 @@ Mauricio Ortega,
 Pablo Gonzalez
 
 Objetivo
+
 Repositorio destinado al desarrollo y seguimiento del Proyecto Capstone, incluyendo avances, documentación, evidencias, código y autoevaluaciones.
 Estructura del repositorio
 documentacion/: documentos relacionados con el proyecto.
