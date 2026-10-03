@@ -1,42 +1,71 @@
 import { Component, input } from '@angular/core';
 
-/** Logo de Patopan recreado en CSS (escala sin perder calidad) */
+/**
+ * Logo de Patopan: espiga de trigo + nombre.
+ * Vectorial (SVG + texto), escala sin perder calidad.
+ */
 @Component({
   selector: 'app-logo',
   template: `
-    <div class="logo" [class.logo--grande]="tamano() === 'grande'" role="img" aria-label="Panadería Patopan">
-      <span class="logo__script">Panadería</span>
-      <span class="logo__banda">PATOPAN</span>
-    </div>
+    <span class="logo" [class.logo--grande]="tamano() === 'grande'" role="img" aria-label="Panadería Patopan">
+      <svg class="logo__trigo" viewBox="0 0 40 64" fill="currentColor" aria-hidden="true">
+        <path d="M20 62 Q20.6 40 20 13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" />
+        <ellipse cx="20" cy="8" rx="3" ry="6.4" />
+        <ellipse cx="13.6" cy="19" rx="3" ry="6.6" transform="rotate(-38 13.6 19)" />
+        <ellipse cx="26.4" cy="19" rx="3" ry="6.6" transform="rotate(38 26.4 19)" />
+        <ellipse cx="13.6" cy="30.5" rx="3" ry="6.6" transform="rotate(-38 13.6 30.5)" />
+        <ellipse cx="26.4" cy="30.5" rx="3" ry="6.6" transform="rotate(38 26.4 30.5)" />
+        <ellipse cx="13.6" cy="42" rx="3" ry="6.6" transform="rotate(-38 13.6 42)" />
+        <ellipse cx="26.4" cy="42" rx="3" ry="6.6" transform="rotate(38 26.4 42)" />
+      </svg>
+      <span class="logo__texto">
+        <span class="logo__nombre">PATOPAN</span>
+        <span class="logo__sub">PANADERÍA</span>
+      </span>
+    </span>
   `,
   styles: `
     .logo {
       display: inline-flex;
-      flex-direction: column;
       align-items: center;
+      gap: 0.6rem;
+    }
+    .logo__trigo {
+      height: 2.4rem;
+      width: auto;
+      color: var(--pp-celeste);
+      flex-shrink: 0;
+    }
+    .logo__texto {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
       line-height: 1;
     }
-    .logo__script {
-      font-family: var(--pp-fuente-script);
-      color: var(--pp-celeste);
-      font-size: 1.35rem;
-      margin-bottom: -0.1rem;
-    }
-    .logo__banda {
-      background: var(--pp-celeste);
-      color: var(--pp-blanco);
+    .logo__nombre {
       font-weight: 800;
-      letter-spacing: 0.3em;
-      padding: 0.3rem 0.6rem 0.3rem 0.9rem;
-      font-size: 0.95rem;
+      font-size: 1.4rem;
+      letter-spacing: 0.06em;
+      color: var(--pp-celeste-oscuro);
     }
-    .logo--grande .logo__script {
+    .logo__sub {
+      font-weight: 600;
+      font-size: 0.55rem;
+      letter-spacing: 0.4em;
+      color: var(--pp-celeste);
+    }
+    .logo--grande {
+      gap: 0.9rem;
+    }
+    .logo--grande .logo__trigo {
+      height: 4.6rem;
+    }
+    .logo--grande .logo__nombre {
       font-size: 2.6rem;
-      margin-bottom: 0.1rem;
     }
-    .logo--grande .logo__banda {
-      font-size: 1.8rem;
-      padding: 0.55rem 1.5rem 0.55rem 2rem;
+    .logo--grande .logo__sub {
+      font-size: 0.8rem;
+      letter-spacing: 0.42em;
     }
   `,
 })

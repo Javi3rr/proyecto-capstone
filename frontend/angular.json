@@ -31,7 +31,6 @@
               "node_modules/@fontsource/montserrat/400.css",
               "node_modules/@fontsource/montserrat/600.css",
               "node_modules/@fontsource/montserrat/800.css",
-              "node_modules/@fontsource/great-vibes/400.css",
               "src/styles.scss"
             ]
           },

@@ -89,7 +89,7 @@ frontend/src/app/
 
 - Rutas con **carga diferida** (lazy loading) por sección.
 - Al iniciar sesión, cada rol llega a su inicio: `despachador → /despacho`, `meson → /meson`, `admin → /admin`.
-- Identidad visual: celeste `#1B99E5` y blanco, con **Montserrat** (texto y "PATOPAN") y **Great Vibes** ("Panadería"). Las fuentes se incluyen en el proyecto, así el sistema funciona aunque no haya internet.
+- Identidad visual: celeste `#1B99E5` y blanco, con tipografía **Montserrat** y un logo propio de espiga de trigo + "PATOPAN" (`docs/img/logo-patopan.svg`). Las fuentes se incluyen en el proyecto, así el sistema funciona aunque no haya internet.
 
 ## 6. Decisiones de integración pendientes
 
