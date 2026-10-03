@@ -1,0 +1,382 @@
+// ============================================================
+//  Patopan - Modelo de datos unificado (Despacho + Mesón)
+//  Documentación: docs/modelo-datos.md
+// ============================================================
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+//  Transversal: usuarios y auditoría
+// ------------------------------------------------------------
+
+enum Rol {
+  ADMIN
+  MESON
+  DESPACHO
+}
+
+model Usuario {
+  id           Int      @id @default(autoincrement())
+  username     String   @unique @db.VarChar(50)
+  nombre       String   @db.VarChar(120)
+  passwordHash String   @map("password_hash")
+  rol          Rol
+  /// Código personal (ej. código de mesonera que imprime la balanza en el voucher)
+  codigo       String?  @unique @db.VarChar(20)
+  activo       Boolean  @default(true)
+  creadoEn     DateTime @default(now()) @map("creado_en")
+  actualizadoEn DateTime @updatedAt @map("actualizado_en")
+
+  auditorias Auditoria[]
+
+  @@map("usuarios")
+}
+
+model Auditoria {
+  id        BigInt   @id @default(autoincrement())
+  usuarioId Int?     @map("usuario_id")
+  usuario   Usuario? @relation(fields: [usuarioId], references: [id])
+  /// LOGIN, LOGIN_FALLIDO, POST, PUT, PATCH, DELETE ...
+  accion    String   @db.VarChar(30)
+  /// Recurso afectado, ej: /api/clientes/5
+  recurso   String   @db.VarChar(255)
+  estadoHttp Int?    @map("estado_http")
+  detalle   Json?
+  ip        String?  @db.VarChar(64)
+  creadoEn  DateTime @default(now()) @map("creado_en")
+
+  @@index([usuarioId, creadoEn])
+  @@index([creadoEn])
+  @@map("auditoria")
+}
+
+// ------------------------------------------------------------
+//  Módulo Despacho
+// ------------------------------------------------------------
+
+enum ModalidadCliente {
+  /// Reparto diario, se cobra el mismo día (Repartidor 1 o 2)
+  REPARTO
+  /// Lleva hoy y paga mañana junto a los clientes del Repartidor 2
+  PAGO_DIA_SIGUIENTE
+  /// Retira en la panadería, lo atiende el despachador
+  PRESENCIAL
+}
+
+model Repartidor {
+  id       Int      @id @default(autoincrement())
+  nombre   String   @db.VarChar(120)
+  rut      String?  @unique @db.VarChar(12)
+  patente  String?  @db.VarChar(10)
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now()) @map("creado_en")
+  actualizadoEn DateTime @updatedAt @map("actualizado_en")
+
+  clientes  Cliente[]
+  despachos Despacho[]
+  guias     Guia[]
+  pagos     Pago[]
+
+  @@map("repartidores")
+}
+
+model Cliente {
+  id               Int              @id @default(autoincrement())
+  nombre           String           @db.VarChar(120)
+  direccion        String?          @db.VarChar(200)
+  telefono         String?          @db.VarChar(20)
+  modalidad        ModalidadCliente
+  /// Repartidor que entrega / cobra (null para presenciales)
+  repartidorId     Int?             @map("repartidor_id")
+  repartidor       Repartidor?      @relation(fields: [repartidorId], references: [id])
+  /// Orden en que aparece en la planilla (igual al cuaderno)
+  orden            Int              @default(0)
+  /// Precio especial por kg (si es null se usa el precio general vigente)
+  precioKgEspecial Decimal?         @map("precio_kg_especial") @db.Decimal(10, 2)
+  activo           Boolean          @default(true)
+  creadoEn         DateTime         @default(now()) @map("creado_en")
+  actualizadoEn    DateTime         @updatedAt @map("actualizado_en")
+
+  despachos Despacho[]
+  guias     Guia[]
+  pagos     Pago[]
+
+  @@unique([nombre, modalidad])
+  @@index([modalidad, orden])
+  @@map("clientes")
+}
+
+model PrecioKg {
+  id           Int      @id @default(autoincrement())
+  valor        Decimal  @db.Decimal(10, 2)
+  vigenteDesde DateTime @map("vigente_desde") @db.Date
+  creadoPorId  Int?     @map("creado_por_id")
+  creadoEn     DateTime @default(now()) @map("creado_en")
+
+  @@index([vigenteDesde])
+  @@map("precios_kg")
+}
+
+/// Un día de trabajo del despacho (equivale a una página del cuaderno)
+model JornadaDespacho {
+  id           Int        @id @default(autoincrement())
+  fecha        DateTime   @unique @db.Date
+  cerrada      Boolean    @default(false)
+  cerradaEn    DateTime?  @map("cerrada_en")
+  cerradaPorId Int?       @map("cerrada_por_id")
+  creadoEn     DateTime   @default(now()) @map("creado_en")
+
+  despachos Despacho[]
+
+  @@map("jornadas_despacho")
+}
+
+/// Línea de la planilla: lo que lleva un cliente en una jornada
+model Despacho {
+  id           Int             @id @default(autoincrement())
+  jornadaId    Int             @map("jornada_id")
+  jornada      JornadaDespacho @relation(fields: [jornadaId], references: [id])
+  clienteId    Int             @map("cliente_id")
+  cliente      Cliente         @relation(fields: [clienteId], references: [id])
+  repartidorId Int?            @map("repartidor_id")
+  repartidor   Repartidor?     @relation(fields: [repartidorId], references: [id])
+  kg           Decimal         @db.Decimal(10, 3)
+  cajas        Int             @default(1)
+  precioKg     Decimal         @map("precio_kg") @db.Decimal(10, 2)
+  monto        Decimal         @db.Decimal(12, 2)
+  creadoPorId  Int?            @map("creado_por_id")
+  creadoEn     DateTime        @default(now()) @map("creado_en")
+  actualizadoEn DateTime       @updatedAt @map("actualizado_en")
+
+  guias Guia[]
+
+  @@unique([jornadaId, clienteId])
+  @@map("despachos")
+}
+
+enum EstadoDocumento {
+  VIGENTE
+  ANULADA
+}
+
+/// Guía impresa por caja/cliente. Una vez emitida NO se edita: solo se anula.
+model Guia {
+  /// El id es el N° correlativo de la guía
+  id               Int             @id @default(autoincrement())
+  despachoId       Int             @map("despacho_id")
+  despacho         Despacho        @relation(fields: [despachoId], references: [id])
+  clienteId        Int             @map("cliente_id")
+  cliente          Cliente         @relation(fields: [clienteId], references: [id])
+  repartidorId     Int?            @map("repartidor_id")
+  repartidor       Repartidor?     @relation(fields: [repartidorId], references: [id])
+  fecha            DateTime        @db.Date
+  kg               Decimal         @db.Decimal(10, 3)
+  precioKg         Decimal         @map("precio_kg") @db.Decimal(10, 2)
+  monto            Decimal         @db.Decimal(12, 2)
+  estado           EstadoDocumento @default(VIGENTE)
+  motivoAnulacion  String?         @map("motivo_anulacion") @db.VarChar(255)
+  anuladaPorId     Int?            @map("anulada_por_id")
+  anuladaEn        DateTime?       @map("anulada_en")
+  impresiones      Int             @default(0)
+  creadoPorId      Int?            @map("creado_por_id")
+  creadoEn         DateTime        @default(now()) @map("creado_en")
+
+  pagos Pago[]
+
+  @@index([clienteId, fecha])
+  @@index([fecha])
+  @@map("guias")
+}
+
+model Pago {
+  id           Int         @id @default(autoincrement())
+  clienteId    Int         @map("cliente_id")
+  cliente      Cliente     @relation(fields: [clienteId], references: [id])
+  guiaId       Int?        @map("guia_id")
+  guia         Guia?       @relation(fields: [guiaId], references: [id])
+  repartidorId Int?        @map("repartidor_id")
+  repartidor   Repartidor? @relation(fields: [repartidorId], references: [id])
+  monto        Decimal     @db.Decimal(12, 2)
+  fecha        DateTime    @db.Date
+  creadoPorId  Int?        @map("creado_por_id")
+  creadoEn     DateTime    @default(now()) @map("creado_en")
+
+  @@index([clienteId, fecha])
+  @@map("pagos")
+}
+
+// ------------------------------------------------------------
+//  Módulo Mesón (facturas e inventario)
+// ------------------------------------------------------------
+
+enum CategoriaProducto {
+  PAN
+  CECINAS
+  MERCADERIA
+}
+
+enum UnidadMedida {
+  KG
+  UNIDAD
+}
+
+model Producto {
+  id           Int               @id @default(autoincrement())
+  /// Código PLU: debe coincidir con el código del producto en la balanza
+  plu          String            @unique @db.VarChar(20)
+  nombre       String            @db.VarChar(120)
+  categoria    CategoriaProducto
+  unidad       UnidadMedida
+  precioVenta  Decimal           @map("precio_venta") @db.Decimal(10, 2)
+  stockMinimo  Decimal           @default(0) @map("stock_minimo") @db.Decimal(12, 3)
+  /// Stock calculado a partir de movimientos (se actualiza en la misma transacción)
+  stockActual  Decimal           @default(0) @map("stock_actual") @db.Decimal(12, 3)
+  activo       Boolean           @default(true)
+  creadoEn     DateTime          @default(now()) @map("creado_en")
+  actualizadoEn DateTime         @updatedAt @map("actualizado_en")
+
+  detallesFactura FacturaDetalle[]
+  movimientos     MovimientoStock[]
+  conteos         ConteoDetalle[]
+
+  @@map("productos")
+}
+
+model Proveedor {
+  id          Int      @id @default(autoincrement())
+  rut         String   @unique @db.VarChar(12)
+  razonSocial String   @map("razon_social") @db.VarChar(150)
+  contacto    String?  @db.VarChar(120)
+  telefono    String?  @db.VarChar(20)
+  email       String?  @db.VarChar(120)
+  activo      Boolean  @default(true)
+  creadoEn    DateTime @default(now()) @map("creado_en")
+  actualizadoEn DateTime @updatedAt @map("actualizado_en")
+
+  facturas Factura[]
+
+  @@map("proveedores")
+}
+
+model Factura {
+  id              Int             @id @default(autoincrement())
+  proveedorId     Int             @map("proveedor_id")
+  proveedor       Proveedor       @relation(fields: [proveedorId], references: [id])
+  numero          String          @db.VarChar(30)
+  fecha           DateTime        @db.Date
+  total           Decimal         @db.Decimal(12, 2)
+  /// Ruta del archivo (foto/PDF) dentro del volumen de uploads
+  archivoPath     String?         @map("archivo_path") @db.VarChar(255)
+  estado          EstadoDocumento @default(VIGENTE)
+  motivoAnulacion String?         @map("motivo_anulacion") @db.VarChar(255)
+  creadoPorId     Int?            @map("creado_por_id")
+  creadoEn        DateTime        @default(now()) @map("creado_en")
+
+  detalles FacturaDetalle[]
+
+  @@unique([proveedorId, numero])
+  @@index([fecha])
+  @@map("facturas")
+}
+
+model FacturaDetalle {
+  id            Int      @id @default(autoincrement())
+  facturaId     Int      @map("factura_id")
+  factura       Factura  @relation(fields: [facturaId], references: [id], onDelete: Cascade)
+  productoId    Int      @map("producto_id")
+  producto      Producto @relation(fields: [productoId], references: [id])
+  cantidad      Decimal  @db.Decimal(12, 3)
+  costoUnitario Decimal  @map("costo_unitario") @db.Decimal(10, 2)
+
+  @@map("facturas_detalle")
+}
+
+enum TipoMovimiento {
+  ENTRADA_FACTURA
+  ANULACION_FACTURA
+  SALIDA_VENTA
+  AJUSTE_POSITIVO
+  AJUSTE_NEGATIVO
+}
+
+/// Kardex: historial inmutable de entradas y salidas de stock
+model MovimientoStock {
+  id               BigInt         @id @default(autoincrement())
+  productoId       Int            @map("producto_id")
+  producto         Producto       @relation(fields: [productoId], references: [id])
+  tipo             TipoMovimiento
+  /// Positivo = entrada, negativo = salida
+  cantidad         Decimal        @db.Decimal(12, 3)
+  saldoResultante  Decimal        @map("saldo_resultante") @db.Decimal(12, 3)
+  /// FACTURA, IMPORTACION_BALANZA, CONTEO, MANUAL
+  origenTipo       String?        @map("origen_tipo") @db.VarChar(30)
+  origenId         Int?           @map("origen_id")
+  motivo           String?        @db.VarChar(255)
+  /// Código de mesonera informado por la balanza (ventas)
+  codigoMesonera   String?        @map("codigo_mesonera") @db.VarChar(20)
+  usuarioId        Int?           @map("usuario_id")
+  creadoEn         DateTime       @default(now()) @map("creado_en")
+
+  @@index([productoId, creadoEn])
+  @@index([origenTipo, origenId])
+  @@map("movimientos_stock")
+}
+
+/// Registro de cada archivo de ventas importado desde las balanzas
+model ImportacionBalanza {
+  id            Int      @id @default(autoincrement())
+  nombreArchivo String   @map("nombre_archivo") @db.VarChar(255)
+  /// Hash SHA-256 del archivo: evita importar dos veces el mismo
+  hashArchivo   String   @unique @map("hash_archivo") @db.VarChar(64)
+  periodoDesde  DateTime @map("periodo_desde")
+  periodoHasta  DateTime @map("periodo_hasta")
+  filas         Int
+  usuarioId     Int?     @map("usuario_id")
+  creadoEn      DateTime @default(now()) @map("creado_en")
+
+  @@map("importaciones_balanza")
+}
+
+model ConteoInventario {
+  id          Int      @id @default(autoincrement())
+  fecha       DateTime @default(now())
+  observacion String?  @db.VarChar(255)
+  usuarioId   Int?     @map("usuario_id")
+
+  detalles ConteoDetalle[]
+
+  @@map("conteos_inventario")
+}
+
+model ConteoDetalle {
+  id            Int              @id @default(autoincrement())
+  conteoId      Int              @map("conteo_id")
+  conteo        ConteoInventario @relation(fields: [conteoId], references: [id], onDelete: Cascade)
+  productoId    Int              @map("producto_id")
+  producto      Producto         @relation(fields: [productoId], references: [id])
+  stockEsperado Decimal          @map("stock_esperado") @db.Decimal(12, 3)
+  stockContado  Decimal          @map("stock_contado") @db.Decimal(12, 3)
+  diferencia    Decimal          @db.Decimal(12, 3)
+  motivo        String?          @db.VarChar(255)
+
+  @@map("conteos_detalle")
+}
+
+/// Total del voucher de caja del día (para comparar con ventas de balanzas)
+model CierreCaja {
+  id        Int      @id @default(autoincrement())
+  fecha     DateTime @unique @db.Date
+  totalCaja Decimal  @map("total_caja") @db.Decimal(12, 2)
+  usuarioId Int?     @map("usuario_id")
+  creadoEn  DateTime @default(now()) @map("creado_en")
+
+  @@map("cierres_caja")
+}

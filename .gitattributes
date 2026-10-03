@@ -1,0 +1,5 @@
+# Normaliza finales de línea (evita errores de scripts .sh en Docker cuando se edita desde Windows)
+* text=auto
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.conf text eol=lf

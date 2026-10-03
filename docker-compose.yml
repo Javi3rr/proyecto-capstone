@@ -1,0 +1,82 @@
+# ------------------------------------------------------------
+#  Patopan - Sistema web unificado (Despacho + Mesón)
+#  Levantar todo:   docker compose up -d --build
+#  Ver logs:        docker compose logs -f api
+#  Bajar todo:      docker compose down        (conserva datos)
+#  Bajar y borrar:  docker compose down -v     (BORRA la base de datos)
+# ------------------------------------------------------------
+name: patopan
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: patopan-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: America/Santiago
+      PGTZ: America/Santiago
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      # Expuesto solo en el equipo local, para usar DBeaver / pgAdmin / prisma migrate dev
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+    container_name: patopan-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: America/Santiago
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      UPLOADS_DIR: /app/uploads
+      SEED_ON_START: ${SEED_ON_START:-true}
+    volumes:
+      - uploads:/app/uploads
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  web:
+    build:
+      context: ./frontend
+    container_name: patopan-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+  # Herramienta opcional para ver la base de datos en el navegador:
+  #   docker compose --profile tools up -d adminer   ->  http://localhost:8081
+  adminer:
+    image: adminer:4
+    container_name: patopan-adminer
+    profiles: ["tools"]
+    depends_on:
+      - db
+    ports:
+      - "127.0.0.1:8081:8080"
+
+volumes:
+  pgdata:
+  uploads:
