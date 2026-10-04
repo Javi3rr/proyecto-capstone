@@ -46,7 +46,8 @@ interface Grupo {
 
     @if (cargando()) {
       <p class="pp-texto-suave">Cargando planilla…</p>
-    } @else if (planilla(); as p) {
+    } @else {
+      @if (planilla(); as p) {
       @if (p.precioGeneral === null) {
         <p class="pp-alerta-error">No hay precio del kg definido para esta fecha. Regístrelo en la pestaña "Precio del kg".</p>
       }
@@ -153,6 +154,7 @@ interface Grupo {
           <button type="button" class="pp-btn pp-btn--secundario" (click)="reabrirDia()">Reabrir día (admin)</button>
         }
       </section>
+      }
     }
   `,
   styles: `
