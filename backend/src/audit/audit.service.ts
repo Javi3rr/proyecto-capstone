@@ -12,6 +12,8 @@ export interface RegistroAuditoria {
 }
 
 const CAMPOS_SENSIBLES = ['password', 'passwordHash', 'clave', 'token'];
+/** Registros técnicos que deja el interceptor por cada petición que modifica datos */
+const METODOS_HTTP = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
 @Injectable()
 export class AuditService {
@@ -43,7 +45,7 @@ export class AuditService {
    */
   async registrarCambio(
     usuarioId: number | undefined,
-    accion: 'CREAR' | 'ACTUALIZAR' | 'DESACTIVAR' | 'REACTIVAR',
+    accion: 'CREAR' | 'ACTUALIZAR' | 'DESACTIVAR' | 'REACTIVAR' | 'ELIMINAR',
     entidad: string,
     entidadId: number,
     antes: unknown,
@@ -57,18 +59,59 @@ export class AuditService {
     });
   }
 
-  async listar(filtro: { usuarioId?: number; desde?: Date; hasta?: Date; limite?: number }) {
-    const filas = await this.prisma.auditoria.findMany({
-      where: {
-        usuarioId: filtro.usuarioId,
-        creadoEn: { gte: filtro.desde, lte: filtro.hasta },
-      },
-      include: { usuario: { select: { username: true, nombre: true } } },
-      orderBy: { creadoEn: 'desc' },
-      take: Math.min(filtro.limite ?? 100, 500),
-    });
+  /**
+   * Consulta paginada de la auditoría (solo administrador).
+   * texto busca en el recurso (ej. "cliente/5", "/api/planilla").
+   * soloEventos oculta los registros técnicos de cada petición HTTP y deja los eventos con antes/después.
+   */
+  async listar(filtro: {
+    usuarioId?: number;
+    accion?: string;
+    texto?: string;
+    desde?: Date;
+    hasta?: Date;
+    soloEventos?: boolean;
+    soloErrores?: boolean;
+    pagina?: number;
+    porPagina?: number;
+  }) {
+    const porPagina = Math.min(Math.max(filtro.porPagina ?? 50, 1), 500);
+    const pagina = Math.max(filtro.pagina ?? 1, 1);
+    const condiciones: Prisma.AuditoriaWhereInput[] = [];
+    if (filtro.accion) condiciones.push({ accion: filtro.accion });
+    if (filtro.soloEventos) condiciones.push({ accion: { notIn: METODOS_HTTP } });
+    if (filtro.soloErrores) condiciones.push({ OR: [{ estadoHttp: { gte: 400 } }, { accion: 'LOGIN_FALLIDO' }] });
+    const where: Prisma.AuditoriaWhereInput = {
+      usuarioId: filtro.usuarioId,
+      creadoEn: { gte: filtro.desde, lte: filtro.hasta },
+      recurso: filtro.texto ? { contains: filtro.texto, mode: 'insensitive' } : undefined,
+      AND: condiciones,
+    };
+
+    const [filas, total] = await Promise.all([
+      this.prisma.auditoria.findMany({
+        where,
+        include: { usuario: { select: { username: true, nombre: true } } },
+        orderBy: [{ creadoEn: 'desc' }, { id: 'desc' }],
+        skip: (pagina - 1) * porPagina,
+        take: porPagina,
+      }),
+      this.prisma.auditoria.count({ where }),
+    ]);
     // BigInt no es serializable a JSON
-    return filas.map((f) => ({ ...f, id: f.id.toString() }));
+    return { registros: filas.map((f) => ({ ...f, id: f.id.toString() })), total, pagina, porPagina };
+  }
+
+  /** Valores para los filtros de la vista: acciones registradas y usuarios */
+  async opcionesFiltro() {
+    const [acciones, usuarios] = await Promise.all([
+      this.prisma.auditoria.findMany({ distinct: ['accion'], select: { accion: true }, orderBy: { accion: 'asc' } }),
+      this.prisma.usuario.findMany({
+        select: { id: true, username: true, nombre: true, rol: true },
+        orderBy: { username: 'asc' },
+      }),
+    ]);
+    return { acciones: acciones.map((a) => a.accion), usuarios };
   }
 
   private sanitizar(valor: unknown): Prisma.InputJsonValue | undefined {

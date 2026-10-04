@@ -14,6 +14,8 @@ import { PagosModule } from './pagos/pagos.module';
 import { PlanillaModule } from './planilla/planilla.module';
 import { PreciosModule } from './precios/precios.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProductosModule } from './productos/productos.module';
+import { ProveedoresModule } from './proveedores/proveedores.module';
 import { RepartidoresModule } from './repartidores/repartidores.module';
 import { ReportesModule } from './reportes/reportes.module';
 
@@ -31,6 +33,8 @@ import { ReportesModule } from './reportes/reportes.module';
     CuadreModule,
     PagosModule,
     ReportesModule,
+    ProductosModule,
+    ProveedoresModule,
   ],
   controllers: [HealthController],
   providers: [

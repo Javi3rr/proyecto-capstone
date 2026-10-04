@@ -94,16 +94,40 @@ export const routes: Routes = [
       {
         path: 'meson',
         canActivate: [rolGuard('MESON')],
-        title: 'Mesón · Patopan',
-        loadComponent: () =>
-          import('./pages/meson/meson-inicio.component').then((m) => m.MesonInicioComponent),
+        loadComponent: () => import('./pages/meson/meson-layout.component').then((m) => m.MesonLayoutComponent),
+        children: [
+          {
+            path: '',
+            title: 'Mesón · Patopan',
+            loadComponent: () => import('./pages/meson/meson-inicio.component').then((m) => m.MesonInicioComponent),
+          },
+          {
+            path: 'productos',
+            title: 'Productos · Patopan',
+            loadComponent: () => import('./pages/meson/productos.component').then((m) => m.ProductosComponent),
+          },
+          {
+            path: 'proveedores',
+            title: 'Proveedores · Patopan',
+            loadComponent: () => import('./pages/meson/proveedores.component').then((m) => m.ProveedoresComponent),
+          },
+        ],
       },
       {
         path: 'admin',
         canActivate: [rolGuard('ADMIN')],
-        title: 'Administración · Patopan',
-        loadComponent: () =>
-          import('./pages/admin/admin-inicio.component').then((m) => m.AdminInicioComponent),
+        children: [
+          {
+            path: '',
+            title: 'Administración · Patopan',
+            loadComponent: () => import('./pages/admin/admin-inicio.component').then((m) => m.AdminInicioComponent),
+          },
+          {
+            path: 'auditoria',
+            title: 'Auditoría · Patopan',
+            loadComponent: () => import('./pages/admin/auditoria.component').then((m) => m.AuditoriaComponent),
+          },
+        ],
       },
       {
         path: 'no-autorizado',

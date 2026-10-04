@@ -72,12 +72,39 @@ export interface PrecioKg {
 
 export interface RegistroAuditoria {
   id: string;
+  usuarioId: number | null;
   accion: string;
   recurso: string;
   estadoHttp: number | null;
   ip: string | null;
+  /** Peticiones HTTP: { params, body }. Eventos: { antes, despues } */
+  detalle: unknown;
   creadoEn: string;
   usuario: { username: string; nombre: string } | null;
+}
+
+export interface PaginaAuditoria {
+  registros: RegistroAuditoria[];
+  total: number;
+  pagina: number;
+  porPagina: number;
+}
+
+export interface FiltroAuditoria {
+  usuarioId?: number;
+  accion?: string;
+  texto?: string;
+  desde?: string;
+  hasta?: string;
+  soloEventos?: boolean;
+  soloErrores?: boolean;
+  pagina?: number;
+  porPagina?: number;
+}
+
+export interface OpcionesAuditoria {
+  acciones: string[];
+  usuarios: { id: number; username: string; nombre: string; rol: Rol }[];
 }
 
 export const NOMBRE_ROL: Record<Rol, string> = {
@@ -280,4 +307,57 @@ export interface PromedioMensual {
   filas: FilaPromedio[];
   totalesPorMes: number[];
   totalKg: number;
+}
+
+// ---------- Mesón ----------
+
+export type CategoriaProducto = 'PAN' | 'CECINAS' | 'MERCADERIA';
+export type UnidadMedida = 'KG' | 'UNIDAD';
+
+export const NOMBRE_CATEGORIA: Record<CategoriaProducto, string> = {
+  PAN: 'Pan',
+  CECINAS: 'Cecinas',
+  MERCADERIA: 'Mercadería',
+};
+
+export const NOMBRE_UNIDAD: Record<UnidadMedida, string> = { KG: 'Kg', UNIDAD: 'Unidad' };
+
+export interface Producto {
+  id: number;
+  plu: string;
+  nombre: string;
+  categoria: CategoriaProducto;
+  unidad: UnidadMedida;
+  precioVenta: Decimal;
+  stockMinimo: Decimal;
+  stockActual: Decimal;
+  activo: boolean;
+}
+
+export interface ProductoForm {
+  plu: string;
+  nombre: string;
+  categoria: CategoriaProducto;
+  unidad: UnidadMedida;
+  precioVenta: number;
+  stockMinimo: number;
+}
+
+export interface Proveedor {
+  id: number;
+  rut: string;
+  razonSocial: string;
+  contacto: string | null;
+  telefono: string | null;
+  email: string | null;
+  activo: boolean;
+  _count?: { facturas: number };
+}
+
+export interface ProveedorForm {
+  rut: string;
+  razonSocial: string;
+  contacto: string | null;
+  telefono: string | null;
+  email: string | null;
 }
