@@ -70,7 +70,7 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
           </select>
         </label>
         <button type="submit" class="pp-btn pp-btn--chico">Buscar</button>
-        <button type="button" class="pp-btn pp-btn--secundario pp-btn--chico" [disabled]="!historial()?.filas.length" (click)="exportar()">
+        <button type="button" class="pp-btn pp-btn--secundario pp-btn--chico" [disabled]="!historial()?.filas?.length" (click)="exportar()">
           Exportar Excel (CSV)
         </button>
       </form>

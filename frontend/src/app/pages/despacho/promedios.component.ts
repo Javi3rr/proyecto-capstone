@@ -54,7 +54,7 @@ function sumarMeses(mes: string, n: number): string {
           </select>
         </label>
         <button type="submit" class="pp-btn pp-btn--chico">Ver</button>
-        <button type="button" class="pp-btn pp-btn--secundario pp-btn--chico" [disabled]="!datos()?.filas.length" (click)="exportar()">
+        <button type="button" class="pp-btn pp-btn--secundario pp-btn--chico" [disabled]="!datos()?.filas?.length" (click)="exportar()">
           Exportar Excel (CSV)
         </button>
       </form>

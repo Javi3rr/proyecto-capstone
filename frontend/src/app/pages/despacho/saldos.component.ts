@@ -53,7 +53,7 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
             </thead>
             <tbody>
               @for (s of visibles(); track s.clienteId) {
-                <tr [class.seleccionado]="cuenta()?.cliente.id === s.clienteId">
+                <tr [class.seleccionado]="cuenta()?.cliente?.id === s.clienteId">
                   <td>
                     {{ s.cliente }}
                     @if (!s.activo) {
