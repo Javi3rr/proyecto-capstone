@@ -7,7 +7,7 @@ import { LogoComponent } from '../../layout/logo.component';
 import { DespachoService } from '../despacho/despacho.service';
 
 /**
- * Vista de impresión de guías en hoja carta: 2 guías por hoja (se corta por la línea punteada).
+ * Vista de impresión de guías: una guía por hoja carta.
  * Uso: /imprimir/guias?ids=12,13,14
  * Al abrirse registra la impresión; si la guía ya se había impreso, sale marcada "COPIA".
  */
@@ -16,7 +16,7 @@ import { DespachoService } from '../despacho/despacho.service';
   imports: [LogoComponent, CurrencyPipe, DatePipe, DecimalPipe],
   template: `
     <div class="barra-impresion no-imprimir">
-      <span>{{ guias().length }} guía(s) · Hoja carta, 2 por hoja. Para PDF elija "Guardar como PDF".</span>
+      <span>{{ guias().length }} guía(s) · Una guía por hoja carta. Para PDF elija "Guardar como PDF".</span>
       <div>
         <button type="button" class="pp-btn" (click)="imprimir()">Imprimir</button>
         <button type="button" class="pp-btn pp-btn--secundario" (click)="cerrar()">Cerrar</button>
@@ -37,7 +37,7 @@ import { DespachoService } from '../despacho/despacho.service';
           }
 
           <header class="cabecera">
-            <app-logo />
+            <app-logo [tamano]="'grande'" />
             <div class="folio">
               <p class="tipo">GUÍA DE ENTREGA</p>
               <p class="numero">N° {{ folio(g.id) }}</p>
@@ -77,11 +77,6 @@ import { DespachoService } from '../despacho/despacho.service';
           </table>
 
           <p class="aviso">Cliente: verifique el peso del pan al recibirlo. Ante cualquier diferencia, comuníquese con la panadería.</p>
-
-          <footer class="firmas">
-            <div><span class="linea"></span>Entregado por (repartidor)</div>
-            <div><span class="linea"></span>Recibido conforme (nombre y firma)</div>
-          </footer>
           <p class="legal">
             Documento interno de control de despacho, no válido como documento tributario ·
             Emitida {{ g.creadoEn | date: 'dd-MM-yyyy HH:mm' }}
@@ -117,27 +112,27 @@ import { DespachoService } from '../despacho/despacho.service';
     .hojas {
       padding: 1rem 0;
     }
-    /* Media hoja carta (215,9 × 279,4 mm) */
+    /* Una guía por hoja carta (215,9 × 279,4 mm, márgenes de 8 mm) */
     .guia {
       position: relative;
       box-sizing: border-box;
       width: 200mm;
-      height: 128mm;
+      height: 263mm;
       margin: 0 auto 6mm;
-      padding: 7mm 9mm;
+      padding: 12mm 12mm 10mm;
       background: #fff;
       color: #111;
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      font-size: 10.5pt;
+      font-size: 13pt;
     }
     .marca {
       position: absolute;
-      top: 42%;
+      top: 45%;
       left: 50%;
-      transform: translate(-50%, -50%) rotate(-18deg);
-      font-size: 64pt;
+      transform: translate(-50%, -50%) rotate(-25deg);
+      font-size: 110pt;
       font-weight: 800;
       letter-spacing: 0.2em;
       color: rgba(214, 69, 69, 0.18);
@@ -147,14 +142,14 @@ import { DespachoService } from '../despacho/despacho.service';
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      border-bottom: 2px solid #1b99e5;
-      padding-bottom: 3mm;
+      border-bottom: 3px solid #1b99e5;
+      padding-bottom: 6mm;
     }
     .folio {
       text-align: right;
       border: 2px solid #1b99e5;
-      border-radius: 6px;
-      padding: 2mm 4mm;
+      border-radius: 8px;
+      padding: 3mm 6mm;
     }
     .folio p {
       margin: 0;
@@ -165,14 +160,14 @@ import { DespachoService } from '../despacho/despacho.service';
       letter-spacing: 0.05em;
     }
     .numero {
-      font-size: 16pt;
+      font-size: 24pt;
       font-weight: 800;
     }
     .datos {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 1.5mm 8mm;
-      margin: 4mm 0;
+      gap: 4mm 10mm;
+      margin: 10mm 0;
     }
     .datos div {
       display: flex;
@@ -180,7 +175,7 @@ import { DespachoService } from '../despacho/despacho.service';
     }
     .datos dt {
       font-weight: 700;
-      min-width: 22mm;
+      min-width: 28mm;
     }
     .datos dd {
       margin: 0;
@@ -193,40 +188,26 @@ import { DespachoService } from '../despacho/despacho.service';
     .detalle th,
     .detalle td {
       border: 1px solid #9fb6c6;
-      padding: 2mm;
+      padding: 5mm 3mm;
     }
     .detalle th {
       background: #e8f5fd;
-      font-size: 9pt;
+      font-size: 11pt;
     }
     .destacado {
-      font-size: 14pt;
+      font-size: 22pt;
       font-weight: 800;
     }
     .aviso {
-      font-size: 9pt;
-      margin: 3mm 0 0;
-    }
-    .firmas {
-      display: flex;
-      gap: 15mm;
-      margin-top: auto;
-      font-size: 9pt;
-      text-align: center;
-    }
-    .firmas div {
-      flex: 1;
-    }
-    .linea {
-      display: block;
-      border-top: 1px solid #333;
-      margin-bottom: 1mm;
-      padding-top: 10mm;
+      font-size: 11pt;
+      margin: 8mm 0 0;
     }
     .legal {
-      font-size: 7.5pt;
+      font-size: 9pt;
       color: #555;
-      margin: 2mm 0 0;
+      margin: auto 0 0;
+      padding-top: 4mm;
+      border-top: 1px solid #ddd;
       text-align: center;
     }
     @media print {
@@ -238,14 +219,10 @@ import { DespachoService } from '../despacho/despacho.service';
       }
       .guia {
         margin: 0 auto;
-        height: 131mm;
-      }
-      /* Línea de corte entre las dos guías de la hoja */
-      .guia:nth-child(odd) {
-        border-bottom: 1px dashed #999;
-      }
-      .guia:nth-child(even) {
         break-after: page;
+      }
+      .guia:last-child {
+        break-after: auto;
       }
     }
   `,
