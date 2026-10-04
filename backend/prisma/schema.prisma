@@ -212,12 +212,16 @@ model Pago {
   guia         Guia?       @relation(fields: [guiaId], references: [id])
   repartidorId Int?        @map("repartidor_id")
   repartidor   Repartidor? @relation(fields: [repartidorId], references: [id])
+  /// Lo que el cliente entregó ese día (puede ser parcial o incluir un abono a deuda anterior)
   monto        Decimal     @db.Decimal(12, 2)
+  /// Día del cuadre en que se recibió el pago
   fecha        DateTime    @db.Date
   creadoPorId  Int?        @map("creado_por_id")
   creadoEn     DateTime    @default(now()) @map("creado_en")
+  actualizadoEn DateTime   @default(now()) @updatedAt @map("actualizado_en")
 
-  @@index([clienteId, fecha])
+  /// Un registro de pago por cliente y día de cuadre
+  @@unique([clienteId, fecha])
   @@map("pagos")
 }
 

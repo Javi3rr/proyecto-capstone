@@ -177,6 +177,8 @@ erDiagram
 | El descuento diario se aplica una sola vez al día | Se asigna a la primera vuelta con pan (`despachos.kg_descuento`) |
 | Cobro de "pago día siguiente" | El cuadre suma sus líneas del día trabajado anterior al repartidor asignado |
 | Cerrar el día bloquea la edición | `jornadas_despacho.cerrada` |
+| Pagos desde el cuadre, uno por cliente y día (pueden ser parciales o abonar deuda anterior) | `pagos` con `UNIQUE(cliente_id, fecha)`; monto 0 elimina el registro |
+| Saldo del cliente | Σ despachos ya cobrables − Σ pagos; el "pago día siguiente" se cobra en la jornada siguiente |
 | Precio especial por cliente | `clientes.precio_kg_especial` (null = precio general vigente) |
 | Kg no cobrados cada día (ej. Suegra: 1 kg) | `clientes.kg_descuento_diario` → monto = (kg − descuento) × precio |
 | Un cambio de precio no altera guías emitidas | `precio_kg` se copia en `despachos` y `guias` al momento de emitir |

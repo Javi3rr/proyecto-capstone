@@ -55,6 +55,23 @@ export const routes: Routes = [
             loadComponent: () => import('./pages/despacho/cuadre.component').then((m) => m.CuadreComponent),
           },
           {
+            path: 'saldos',
+            title: 'Pagos y saldos · Patopan',
+            loadComponent: () => import('./pages/despacho/saldos.component').then((m) => m.SaldosComponent),
+          },
+          {
+            path: 'historial',
+            title: 'Historial de despachos · Patopan',
+            loadComponent: () =>
+              import('./pages/despacho/historial.component').then((m) => m.HistorialComponent),
+          },
+          {
+            path: 'promedios',
+            title: 'Promedio mensual · Patopan',
+            loadComponent: () =>
+              import('./pages/despacho/promedios.component').then((m) => m.PromediosComponent),
+          },
+          {
             path: 'clientes',
             title: 'Clientes · Patopan',
             loadComponent: () =>

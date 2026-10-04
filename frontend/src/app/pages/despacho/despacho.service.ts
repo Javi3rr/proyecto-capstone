@@ -5,13 +5,18 @@ import {
   Cliente,
   ClienteForm,
   Cuadre,
+  EstadoCuenta,
+  FiltroHistorial,
   Guia,
+  Historial,
   LineaDespacho,
   ModalidadCliente,
   Planilla,
   PrecioKg,
+  PromedioMensual,
   Repartidor,
   RepartidorForm,
+  SaldoCliente,
   Vuelta,
 } from '../../core/models';
 
@@ -128,6 +133,42 @@ export class DespachoService {
   // ---------- Cuadre ----------
   cuadre(fecha: string): Observable<Cuadre> {
     return this.http.get<Cuadre>(`/api/cuadre/${fecha}`);
+  }
+
+  // ---------- Pagos y saldos ----------
+  /** Registra lo que pagó un cliente en el cuadre del día (monto 0 = no pagó) */
+  registrarPago(fecha: string, clienteId: number, monto: number, repartidorId: number | null): Observable<unknown> {
+    return this.http.put(`/api/pagos/${fecha}/clientes/${clienteId}`, { monto, repartidorId });
+  }
+
+  saldos(): Observable<SaldoCliente[]> {
+    return this.http.get<SaldoCliente[]>('/api/pagos/saldos');
+  }
+
+  estadoCuenta(clienteId: number, desde: string, hasta: string): Observable<EstadoCuenta> {
+    return this.http.get<EstadoCuenta>(`/api/pagos/clientes/${clienteId}/estado-cuenta`, { params: { desde, hasta } });
+  }
+
+  // ---------- Reportes ----------
+  historial(filtro: FiltroHistorial): Observable<Historial> {
+    let params = new HttpParams().set('desde', filtro.desde).set('hasta', filtro.hasta);
+    if (filtro.clienteId) params = params.set('clienteId', filtro.clienteId);
+    if (filtro.repartidorId) params = params.set('repartidorId', filtro.repartidorId);
+    if (filtro.vuelta) params = params.set('vuelta', filtro.vuelta);
+    if (filtro.modalidad) params = params.set('modalidad', filtro.modalidad);
+    return this.http.get<Historial>('/api/reportes/historial', { params });
+  }
+
+  promedioMensual(filtro: {
+    desde: string;
+    hasta: string;
+    repartidorId?: number;
+    modalidad?: ModalidadCliente;
+  }): Observable<PromedioMensual> {
+    let params = new HttpParams().set('desde', filtro.desde).set('hasta', filtro.hasta);
+    if (filtro.repartidorId) params = params.set('repartidorId', filtro.repartidorId);
+    if (filtro.modalidad) params = params.set('modalidad', filtro.modalidad);
+    return this.http.get<PromedioMensual>('/api/reportes/promedio-mensual', { params });
   }
 }
 

@@ -9,8 +9,7 @@ interface GrupoClientes {
 }
 
 /**
- * Inicio de Despacho. Por ahora muestra la cartera de clientes agrupada igual que el cuaderno.
- * Aquí se construirá la planilla diaria de kg, guías y cuadre por repartidor.
+ * Inicio de Despacho: cartera de clientes agrupada igual que el cuaderno.
  */
 @Component({
   selector: 'app-despacho-inicio',
@@ -45,14 +44,6 @@ interface GrupoClientes {
       </div>
     }
 
-    <section class="pp-card proximamente">
-      <h2>Próximamente en este módulo</h2>
-      <ul>
-        <li>Registro de pagos y saldos pendientes por cliente</li>
-        <li>Promedio mensual de pan por cliente</li>
-        <li>Historial de despachos por fecha, cliente o repartidor</li>
-      </ul>
-    </section>
   `,
   styles: `
     .encabezado {
@@ -86,13 +77,6 @@ interface GrupoClientes {
       padding-left: 1.4rem;
       columns: 2;
       font-size: 0.92rem;
-    }
-    .proximamente {
-      margin-top: 1.5rem;
-      background: var(--pp-celeste-claro);
-    }
-    .proximamente h2 {
-      font-size: 1rem;
     }
   `,
 })
