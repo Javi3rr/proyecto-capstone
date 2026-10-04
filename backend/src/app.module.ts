@@ -10,10 +10,12 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { HealthController } from './health/health.controller';
 import { CuadreModule } from './cuadre/cuadre.module';
 import { GuiasModule } from './guias/guias.module';
+import { PagosModule } from './pagos/pagos.module';
 import { PlanillaModule } from './planilla/planilla.module';
 import { PreciosModule } from './precios/precios.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RepartidoresModule } from './repartidores/repartidores.module';
+import { ReportesModule } from './reportes/reportes.module';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { RepartidoresModule } from './repartidores/repartidores.module';
     PlanillaModule,
     GuiasModule,
     CuadreModule,
+    PagosModule,
+    ReportesModule,
   ],
   controllers: [HealthController],
   providers: [

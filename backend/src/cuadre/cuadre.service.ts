@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { fechaDesdeISO } from '../common/utils';
+import { PagosService } from '../pagos/pagos.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 const INCLUDE_LINEA = {
@@ -22,6 +23,10 @@ export interface LineaCuadre {
   guiaIds: number[];
   /** Vueltas con pan que aún no tienen guía emitida */
   sinGuia: number;
+  /** Lo que el cliente pagó en el cuadre de este día (null = aún no se registra) */
+  pagado: number | null;
+  /** Lo que debía antes de este día (negativo = saldo a favor) */
+  saldoAnterior: number;
 }
 
 /** Agrupa las líneas (una por vuelta) en una fila por cliente, en el orden de la planilla */
@@ -40,11 +45,21 @@ function agrupar(despachos: DespachoLinea[]): LineaCuadre[] {
     monto: ls.reduce((t, l) => t + Number(l.monto), 0),
     guiaIds: ls.flatMap((l) => l.guias.map((g) => g.id)),
     sinGuia: ls.filter((l) => l.guias.length === 0).length,
+    pagado: null,
+    saldoAnterior: 0,
   }));
 }
 
-const sumar = (lineas: LineaCuadre[], campo: 'kg' | 'monto' | 'sinGuia') =>
-  Math.round(lineas.reduce((t, l) => t + l[campo], 0) * 1000) / 1000;
+const sumar = (lineas: LineaCuadre[], campo: 'kg' | 'monto' | 'sinGuia' | 'pagado' | 'saldoAnterior') =>
+  Math.round(lineas.reduce((t, l) => t + (l[campo] ?? 0), 0) * 1000) / 1000;
+
+/** Rellena lo pagado hoy y el saldo anterior de cada línea que se cobra en este cuadre */
+function completarPagos(lineas: LineaCuadre[], pagos: Map<number, number>, saldos: Map<number, number>) {
+  for (const l of lineas) {
+    l.pagado = pagos.get(l.clienteId) ?? null;
+    l.saldoAnterior = saldos.get(l.clienteId) ?? 0;
+  }
+}
 
 /**
  * Cuadre por repartidor:
@@ -54,7 +69,10 @@ const sumar = (lineas: LineaCuadre[], campo: 'kg' | 'monto' | 'sinGuia') =>
  */
 @Injectable()
 export class CuadreService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pagos: PagosService,
+  ) {}
 
   async obtener(fecha: string) {
     const fechaD = fechaDesdeISO(fecha);
@@ -84,6 +102,13 @@ export class CuadreService {
       orderBy: { nombre: 'asc' },
     });
 
+    // Pagos registrados hoy y saldo que cada cliente arrastraba de días anteriores
+    const idsClientes = [...new Set([...hoy, ...previos].map((d) => d.clienteId))];
+    const [pagosHoy, saldosPrevios] = await Promise.all([
+      this.pagos.pagosDelDia(fecha),
+      this.pagos.saldosAntesDe(fecha, idsClientes),
+    ]);
+
     const porRepartidor = repartidores.map((r) => {
       const cobrosDelDia = agrupar(
         hoy.filter((d) => d.repartidorId === r.id && d.cliente.modalidad === 'REPARTO'),
@@ -94,6 +119,7 @@ export class CuadreService {
       );
       const entregados = [...cobrosDelDia, ...entregasPagoManana];
       const aCobrar = [...cobrosDelDia, ...cobrosPagoDiaAnterior];
+      completarPagos(aCobrar, pagosHoy, saldosPrevios);
       return {
         repartidor: r,
         cobrosDelDia,
@@ -103,11 +129,16 @@ export class CuadreService {
           kgEntregados: sumar(entregados, 'kg'),
           montoACobrar: sumar(aCobrar, 'monto'),
           montoPagoManana: sumar(entregasPagoManana, 'monto'),
+          /** Lo que efectivamente rindió (suma de pagos registrados) */
+          montoRecibido: sumar(aCobrar, 'pagado'),
+          /** Clientes a cobrar hoy cuyo pago aún no se registra */
+          pagosSinRegistrar: aCobrar.filter((l) => l.pagado === null).length,
         },
       };
     });
 
     const presenciales = agrupar(hoy.filter((d) => d.cliente.modalidad === 'PRESENCIAL'));
+    completarPagos(presenciales, pagosHoy, saldosPrevios);
     const todas = agrupar(hoy);
 
     return {
@@ -119,7 +150,12 @@ export class CuadreService {
       ),
       presenciales: {
         lineas: presenciales,
-        totales: { kg: sumar(presenciales, 'kg'), monto: sumar(presenciales, 'monto') },
+        totales: {
+          kg: sumar(presenciales, 'kg'),
+          monto: sumar(presenciales, 'monto'),
+          montoRecibido: sumar(presenciales, 'pagado'),
+          pagosSinRegistrar: presenciales.filter((l) => l.pagado === null).length,
+        },
       },
       totalesDia: {
         kg: sumar(todas, 'kg'),

@@ -157,6 +157,10 @@ export interface LineaCuadre {
   monto: number;
   guiaIds: number[];
   sinGuia: number;
+  /** Lo que pagó en el cuadre de este día (null = aún no se registra) */
+  pagado: number | null;
+  /** Lo que debía antes de este día (negativo = saldo a favor) */
+  saldoAnterior: number;
 }
 
 export interface CuadreRepartidor {
@@ -164,7 +168,13 @@ export interface CuadreRepartidor {
   cobrosDelDia: LineaCuadre[];
   cobrosPagoDiaAnterior: LineaCuadre[];
   entregasPagoManana: LineaCuadre[];
-  totales: { kgEntregados: number; montoACobrar: number; montoPagoManana: number };
+  totales: {
+    kgEntregados: number;
+    montoACobrar: number;
+    montoPagoManana: number;
+    montoRecibido: number;
+    pagosSinRegistrar: number;
+  };
 }
 
 export interface Cuadre {
@@ -172,6 +182,102 @@ export interface Cuadre {
   cerrada: boolean;
   fechaAnterior: string | null;
   repartidores: CuadreRepartidor[];
-  presenciales: { lineas: LineaCuadre[]; totales: { kg: number; monto: number } };
+  presenciales: {
+    lineas: LineaCuadre[];
+    totales: { kg: number; monto: number; montoRecibido: number; pagosSinRegistrar: number };
+  };
   totalesDia: { kg: number; monto: number; sinGuia: number };
+}
+
+// ---------- Pagos y saldos ----------
+
+export interface SaldoCliente {
+  clienteId: number;
+  cliente: string;
+  modalidad: ModalidadCliente;
+  repartidor: { id: number; nombre: string } | null;
+  activo: boolean;
+  totalDespachado: number;
+  totalPagado: number;
+  /** Positivo = debe; negativo = saldo a favor */
+  saldo: number;
+  /** Pago día siguiente entregado y que aún no corresponde cobrar */
+  porCobrar: number;
+  ultimoPago: string | null;
+}
+
+export interface MovimientoCuenta {
+  fecha: string;
+  despachos: { fechaDespacho: string; kg: number; monto: number }[];
+  cargo: number;
+  pagado: number;
+  recibidoPor: string | null;
+  saldo: number;
+}
+
+export interface EstadoCuenta {
+  cliente: { id: number; nombre: string; modalidad: ModalidadCliente; repartidor: { id: number; nombre: string } | null };
+  desde: string;
+  hasta: string;
+  saldoInicial: number;
+  movimientos: MovimientoCuenta[];
+  saldoFinal: number;
+  porCobrar: number;
+  totales: { cargo: number; pagado: number };
+}
+
+// ---------- Reportes ----------
+
+export interface FilaHistorial {
+  id: number;
+  fecha: string;
+  vuelta: Vuelta;
+  cliente: { id: number; nombre: string; modalidad: ModalidadCliente };
+  repartidor: { id: number; nombre: string } | null;
+  kg: number;
+  kgDescuento: number;
+  precioKg: number;
+  monto: number;
+  guias: { id: number; estado: EstadoDocumento; impresiones: number; motivoAnulacion: string | null }[];
+  registradoPor: string | null;
+  actualizadoEn: string;
+}
+
+export interface Historial {
+  filas: FilaHistorial[];
+  truncado: boolean;
+  totales: { registros: number; dias: number; kg: number; monto: number; sinGuia: number };
+}
+
+export interface FiltroHistorial {
+  desde: string;
+  hasta: string;
+  clienteId?: number;
+  repartidorId?: number;
+  vuelta?: Vuelta;
+  modalidad?: ModalidadCliente;
+}
+
+export interface FilaPromedio {
+  clienteId: number;
+  cliente: string;
+  modalidad: ModalidadCliente;
+  repartidor: string | null;
+  kgPorMes: number[];
+  diasPorMes: number[];
+  totalKg: number;
+  totalDias: number;
+  promedioMensual: number;
+  promedioDiario: number;
+  /** % de cambio del promedio diario del último mes respecto a los anteriores */
+  variacion: number | null;
+  anomalia: boolean;
+}
+
+export interface PromedioMensual {
+  meses: string[];
+  umbralVariacion: number;
+  filas: FilaPromedio[];
+  totalesPorMes: number[];
+  totalKg: number;
 }
