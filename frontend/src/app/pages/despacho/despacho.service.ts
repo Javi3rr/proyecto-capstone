@@ -1,7 +1,19 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { Cliente, ClienteForm, PrecioKg, Repartidor, RepartidorForm } from '../../core/models';
+import {
+  Cliente,
+  ClienteForm,
+  Cuadre,
+  Guia,
+  LineaDespacho,
+  ModalidadCliente,
+  Planilla,
+  PrecioKg,
+  Repartidor,
+  RepartidorForm,
+  Vuelta,
+} from '../../core/models';
 
 /** Acceso a la API del módulo Despacho */
 @Injectable({ providedIn: 'root' })
@@ -56,6 +68,82 @@ export class DespachoService {
   crearPrecio(valor: number, vigenteDesde: string): Observable<PrecioKg> {
     return this.http.post<PrecioKg>('/api/precios-kg', { valor, vigenteDesde });
   }
+
+  // ---------- Planilla diaria ----------
+  planilla(fecha: string): Observable<Planilla> {
+    return this.http.get<Planilla>(`/api/planilla/${fecha}`);
+  }
+
+  /** Registra los kg de un cliente en una vuelta (kg = 0 elimina la línea) */
+  registrarLinea(fecha: string, clienteId: number, vuelta: Vuelta, kg: number): Observable<LineaDespacho | { eliminado: true }> {
+    return this.http.put<LineaDespacho | { eliminado: true }>(
+      `/api/planilla/${fecha}/clientes/${clienteId}/vueltas/${vuelta}`,
+      { kg },
+    );
+  }
+
+  cerrarDia(fecha: string): Observable<unknown> {
+    return this.http.post(`/api/planilla/${fecha}/cerrar`, {});
+  }
+
+  reabrirDia(fecha: string): Observable<unknown> {
+    return this.http.post(`/api/planilla/${fecha}/reabrir`, {});
+  }
+
+  // ---------- Guías ----------
+  emitirGuia(despachoId: number): Observable<Guia> {
+    return this.http.post<Guia>('/api/guias', { despachoId });
+  }
+
+  emitirLote(
+    fecha: string,
+    filtro: { modalidad?: ModalidadCliente; repartidorId?: number; vuelta?: Vuelta },
+  ): Observable<{ creadas: number[]; ids: number[] }> {
+    return this.http.post<{ creadas: number[]; ids: number[] }>('/api/guias/lote', { fecha, ...filtro });
+  }
+
+  /** Guías para la vista de impresión (esCopia = ya se imprimió antes). No registra nada. */
+  guiasParaImprimir(ids: number[]): Observable<Guia[]> {
+    return this.http.get<Guia[]>('/api/guias/impresion', { params: { ids: ids.join(',') } });
+  }
+
+  /** Registra que las guías se imprimieron de verdad */
+  confirmarImpresion(ids: number[]): Observable<{ registradas: number }> {
+    return this.http.post<{ registradas: number }>('/api/guias/impresion/confirmar', { ids });
+  }
+
+  guias(filtro: { fecha?: string; numero?: number; clienteId?: number; incluirAnuladas?: boolean }): Observable<Guia[]> {
+    let params = new HttpParams();
+    if (filtro.fecha) params = params.set('fecha', filtro.fecha);
+    if (filtro.numero) params = params.set('numero', filtro.numero);
+    if (filtro.clienteId) params = params.set('clienteId', filtro.clienteId);
+    if (filtro.incluirAnuladas) params = params.set('incluirAnuladas', true);
+    return this.http.get<Guia[]>('/api/guias', { params });
+  }
+
+  anularGuia(id: number, motivo: string): Observable<Guia> {
+    return this.http.post<Guia>(`/api/guias/${id}/anular`, { motivo });
+  }
+
+  // ---------- Cuadre ----------
+  cuadre(fecha: string): Observable<Cuadre> {
+    return this.http.get<Cuadre>(`/api/cuadre/${fecha}`);
+  }
+}
+
+/** Abre la vista de impresión de guías en una pestaña nueva */
+export function abrirImpresionGuias(ids: number[]): void {
+  if (ids.length === 0) return;
+  window.open(`/imprimir/guias?ids=${ids.join(',')}`, '_blank');
+}
+
+/** Suma (o resta) días a una fecha AAAA-MM-DD */
+export function sumarDias(fecha: string, dias: number): string {
+  const d = new Date(`${fecha}T12:00:00`);
+  d.setDate(d.getDate() + dias);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 /** Fecha de hoy en formato AAAA-MM-DD (hora local del equipo) */

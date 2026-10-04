@@ -185,3 +185,28 @@ a {
 .pp-texto-suave {
   color: var(--pp-texto-suave);
 }
+
+/* ---------- Impresión (hoja carta) ---------- */
+@page {
+  size: letter;
+  margin: 8mm;
+}
+
+@media print {
+  .no-imprimir,
+  .barra {
+    display: none !important;
+  }
+  html,
+  body {
+    background: #fff;
+  }
+  .contenido {
+    padding: 0;
+    max-width: none;
+  }
+  .pp-card {
+    box-shadow: none;
+    border-color: #bbb;
+  }
+}

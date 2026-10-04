@@ -12,6 +12,14 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/login/login.component').then((m) => m.LoginComponent),
   },
   {
+    // Vista de impresión (sin encabezado ni menú)
+    path: 'imprimir/guias',
+    canActivate: [authGuard, rolGuard('DESPACHO')],
+    title: 'Imprimir guías · Patopan',
+    loadComponent: () =>
+      import('./pages/imprimir/imprimir-guias.component').then((m) => m.ImprimirGuiasComponent),
+  },
+  {
     path: '',
     component: ShellComponent,
     canActivate: [authGuard],
@@ -29,6 +37,22 @@ export const routes: Routes = [
             title: 'Despacho · Patopan',
             loadComponent: () =>
               import('./pages/despacho/despacho-inicio.component').then((m) => m.DespachoInicioComponent),
+          },
+          {
+            path: 'planilla',
+            title: 'Planilla del día · Patopan',
+            loadComponent: () =>
+              import('./pages/despacho/planilla.component').then((m) => m.PlanillaComponent),
+          },
+          {
+            path: 'guias',
+            title: 'Guías · Patopan',
+            loadComponent: () => import('./pages/despacho/guias.component').then((m) => m.GuiasComponent),
+          },
+          {
+            path: 'cuadre',
+            title: 'Cuadre · Patopan',
+            loadComponent: () => import('./pages/despacho/cuadre.component').then((m) => m.CuadreComponent),
           },
           {
             path: 'clientes',
