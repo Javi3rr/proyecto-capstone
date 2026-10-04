@@ -1,4 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="12" fill="#1B99E5"/>
-  <text x="32" y="43" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-weight="800" font-size="30" fill="#ffffff">P</text>
+  <rect width="64" height="64" rx="13" fill="#1B99E5"/>
+  <g fill="#ffffff" transform="translate(14 4) scale(0.9)">
+    <path d="M20 62 Q20.6 40 20 13" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round"/>
+    <ellipse cx="20" cy="8" rx="3" ry="6.4"/>
+    <ellipse cx="13.6" cy="19" rx="3" ry="6.6" transform="rotate(-38 13.6 19)"/>
+    <ellipse cx="26.4" cy="19" rx="3" ry="6.6" transform="rotate(38 26.4 19)"/>
+    <ellipse cx="13.6" cy="30.5" rx="3" ry="6.6" transform="rotate(-38 13.6 30.5)"/>
+    <ellipse cx="26.4" cy="30.5" rx="3" ry="6.6" transform="rotate(38 26.4 30.5)"/>
+    <ellipse cx="13.6" cy="42" rx="3" ry="6.6" transform="rotate(-38 13.6 42)"/>
+    <ellipse cx="26.4" cy="42" rx="3" ry="6.6" transform="rotate(38 26.4 42)"/>
+  </g>
 </svg>
