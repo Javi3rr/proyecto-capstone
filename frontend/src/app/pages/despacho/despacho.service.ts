@@ -102,9 +102,14 @@ export class DespachoService {
     return this.http.post<{ creadas: number[]; ids: number[] }>('/api/guias/lote', { fecha, ...filtro });
   }
 
-  /** Devuelve las guías para imprimir y registra la impresión (esCopia = ya impresa antes) */
-  imprimirGuias(ids: number[]): Observable<Guia[]> {
-    return this.http.post<Guia[]>('/api/guias/imprimir', { ids });
+  /** Guías para la vista de impresión (esCopia = ya se imprimió antes). No registra nada. */
+  guiasParaImprimir(ids: number[]): Observable<Guia[]> {
+    return this.http.get<Guia[]>('/api/guias/impresion', { params: { ids: ids.join(',') } });
+  }
+
+  /** Registra que las guías se imprimieron de verdad */
+  confirmarImpresion(ids: number[]): Observable<{ registradas: number }> {
+    return this.http.post<{ registradas: number }>('/api/guias/impresion/confirmar', { ids });
   }
 
   guias(filtro: { fecha?: string; numero?: number; clienteId?: number; incluirAnuladas?: boolean }): Observable<Guia[]> {

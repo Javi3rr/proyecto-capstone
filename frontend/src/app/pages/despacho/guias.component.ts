@@ -199,8 +199,8 @@ export class GuiasComponent {
   }
 
   imprimir(g: Guia): void {
+    // La impresión se registra solo si se confirma en la pestaña de impresión
     abrirImpresionGuias([g.id]);
-    this.guias.set(this.guias().map((x) => (x.id === g.id ? { ...x, impresiones: x.impresiones + 1 } : x)));
   }
 
   anular(g: Guia): void {

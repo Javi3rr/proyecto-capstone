@@ -23,6 +23,17 @@ export class GuiasController {
     return this.guias.listar({ fecha: fecha || undefined, clienteId, numero, incluirAnuladas });
   }
 
+  /** GET /api/guias/impresion?ids=12,13  -> guías para la vista de impresión (no registra nada) */
+  @Get('impresion')
+  paraImprimir(@Query('ids') ids?: string) {
+    const lista = (ids ?? '')
+      .split(',')
+      .map((x) => Number(x))
+      .filter((x) => Number.isInteger(x) && x > 0);
+    if (lista.length === 0 || lista.length > 200) throw new BadRequestException('Indique entre 1 y 200 guías');
+    return this.guias.paraImprimir(lista);
+  }
+
   @Get(':id')
   obtener(@Param('id', ParseIntPipe) id: number) {
     return this.guias.obtener(id);
@@ -38,11 +49,11 @@ export class GuiasController {
     return this.guias.emitirLote(dto.fecha, { modalidad: dto.modalidad, repartidorId: dto.repartidorId, vuelta: dto.vuelta }, user.sub);
   }
 
-  /** Devuelve las guías listas para imprimir y suma 1 a su contador de impresiones */
-  @Post('imprimir')
+  /** Confirma que las guías se imprimieron (solo entonces una reimpresión sale como "COPIA") */
+  @Post('impresion/confirmar')
   @HttpCode(200)
-  imprimir(@Body() dto: ImprimirGuiasDto, @CurrentUser() user: JwtPayload) {
-    return this.guias.imprimir(dto.ids, user.sub);
+  confirmarImpresion(@Body() dto: ImprimirGuiasDto, @CurrentUser() user: JwtPayload) {
+    return this.guias.confirmarImpresion(dto.ids, user.sub);
   }
 
   @Post(':id/anular')

@@ -87,25 +87,33 @@ export class GuiasService {
   }
 
   /**
-   * Devuelve las guías para imprimir y registra la impresión.
+   * Guías para la vista de impresión. NO registra nada:
    * esCopia = true si la guía ya se había impreso antes (se marca "COPIA").
    */
-  async imprimir(ids: number[], usuarioId?: number) {
+  async paraImprimir(ids: number[]) {
     const guias = await this.prisma.guia.findMany({ where: { id: { in: ids } }, include: INCLUDE_GUIA });
     if (guias.length === 0) throw new NotFoundException('No se encontraron las guías');
+    const orden = new Map(ids.map((id, i) => [id, i]));
+    return guias
+      .sort((a, b) => (orden.get(a.id) ?? 0) - (orden.get(b.id) ?? 0))
+      .map((g) => ({ ...g, esCopia: g.impresiones > 0 }));
+  }
 
-    await this.prisma.guia.updateMany({ where: { id: { in: guias.map((g) => g.id) } }, data: { impresiones: { increment: 1 } } });
+  /** El usuario confirmó que las guías se imprimieron: desde ahora una reimpresión sale como "COPIA" */
+  async confirmarImpresion(ids: number[], usuarioId?: number) {
+    const guias = await this.prisma.guia.findMany({ where: { id: { in: ids } }, select: { id: true, impresiones: true } });
+    if (guias.length === 0) throw new NotFoundException('No se encontraron las guías');
+    await this.prisma.guia.updateMany({
+      where: { id: { in: guias.map((g) => g.id) } },
+      data: { impresiones: { increment: 1 } },
+    });
     await this.audit.registrar({
       usuarioId,
       accion: 'IMPRIMIR_GUIAS',
       recurso: 'guias',
       detalle: { ids: guias.map((g) => g.id), copias: guias.filter((g) => g.impresiones > 0).map((g) => g.id) },
     });
-
-    const orden = new Map(ids.map((id, i) => [id, i]));
-    return guias
-      .sort((a, b) => (orden.get(a.id) ?? 0) - (orden.get(b.id) ?? 0))
-      .map((g) => ({ ...g, esCopia: g.impresiones > 0 }));
+    return { registradas: guias.length };
   }
 
   /** Una guía emitida no se edita: solo se anula, con motivo, quién y cuándo */

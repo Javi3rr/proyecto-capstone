@@ -23,6 +23,19 @@ import { DespachoService } from '../despacho/despacho.service';
       </div>
     </div>
 
+    @if (preguntar()) {
+      <div class="confirmacion no-imprimir" role="alertdialog" aria-live="assertive">
+        <strong>¿Las guías se imprimieron correctamente?</strong>
+        <span class="pp-texto-suave">Solo si responde "Sí", una próxima impresión saldrá marcada como COPIA.</span>
+        <div>
+          <button type="button" class="pp-btn" (click)="confirmar()">Sí, se imprimieron</button>
+          <button type="button" class="pp-btn pp-btn--secundario" (click)="noImpresas()">No se imprimieron</button>
+        </div>
+      </div>
+    }
+    @if (aviso()) {
+      <p class="pp-aviso-ok no-imprimir aviso-impresion">{{ aviso() }}</p>
+    }
     @if (error()) {
       <p class="pp-alerta-error no-imprimir">{{ error() }}</p>
     }
@@ -109,6 +122,26 @@ import { DespachoService } from '../despacho/despacho.service';
     }
     .barra-impresion button + button {
       margin-left: 0.5rem;
+    }
+    .confirmacion {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      max-width: 200mm;
+      margin: 1rem auto 0;
+      padding: 1rem;
+      background: #fff8ec;
+      border: 2px solid var(--pp-alerta);
+      border-radius: 10px;
+      text-align: center;
+    }
+    .confirmacion button + button {
+      margin-left: 0.5rem;
+    }
+    .aviso-impresion {
+      max-width: 200mm;
+      margin: 1rem auto 0;
     }
     .hojas {
       padding: 1rem 0;
@@ -236,6 +269,9 @@ export class ImprimirGuiasComponent {
   protected readonly nombreVuelta = NOMBRE_VUELTA;
   protected readonly guias = signal<Guia[]>([]);
   protected readonly error = signal<string | null>(null);
+  protected readonly aviso = signal<string | null>(null);
+  /** Se muestra al cerrar el diálogo de impresión: el navegador no informa si se imprimió o se canceló */
+  protected readonly preguntar = signal(false);
 
   constructor() {
     const ids = (this.route.snapshot.queryParamMap.get('ids') ?? '')
@@ -248,11 +284,13 @@ export class ImprimirGuiasComponent {
       return;
     }
 
-    this.api.imprimirGuias(ids).subscribe({
+    window.addEventListener('afterprint', () => this.preguntar.set(this.guias().length > 0));
+
+    this.api.guiasParaImprimir(ids).subscribe({
       next: (data) => {
         this.guias.set(data);
         // Espera a que carguen las fuentes antes de abrir el diálogo de impresión
-        void document.fonts.ready.then(() => setTimeout(() => window.print(), 300));
+        void document.fonts.ready.then(() => setTimeout(() => this.imprimir(), 300));
       },
       error: (e) => this.error.set(mensajeError(e, 'No se pudieron cargar las guías.')),
     });
@@ -271,7 +309,32 @@ export class ImprimirGuiasComponent {
   }
 
   imprimir(): void {
+    this.aviso.set(null);
+    this.preguntar.set(false);
     window.print();
+    // En la mayoría de los navegadores window.print() espera a que se cierre el diálogo
+    this.preguntar.set(true);
+  }
+
+  confirmar(): void {
+    const ids = this.guias()
+      .filter((g) => g.estado === 'VIGENTE')
+      .map((g) => g.id);
+    this.preguntar.set(false);
+    if (ids.length === 0) return;
+    this.api.confirmarImpresion(ids).subscribe({
+      next: () => {
+        // Desde ahora, si se vuelven a imprimir en esta pestaña, salen como COPIA
+        this.guias.set(this.guias().map((g) => ({ ...g, esCopia: true })));
+        this.aviso.set('Impresión registrada. Ya puede cerrar esta pestaña.');
+      },
+      error: (e) => this.error.set(mensajeError(e, 'No se pudo registrar la impresión.')),
+    });
+  }
+
+  noImpresas(): void {
+    this.preguntar.set(false);
+    this.aviso.set('No se registró la impresión. Puede intentarlo de nuevo con "Imprimir".');
   }
 
   cerrar(): void {

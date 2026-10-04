@@ -221,13 +221,15 @@ interface Grupo {
       font-size: 0.82rem;
       margin: 0.4rem 0 0.75rem;
     }
+    /* 2 columnas sin huecos: cada sección se apila bajo la anterior de su columna */
     .grupos {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-      gap: 0.75rem;
-      align-items: start;
+      columns: 2 520px;
+      column-gap: 0.75rem;
     }
     .grupo {
+      display: block;
+      break-inside: avoid;
+      margin: 0 0 0.75rem;
       padding: 0.6rem 0.75rem;
     }
     summary {
@@ -263,8 +265,10 @@ interface Grupo {
       font-size: 0.75rem;
       margin: 0.1rem 0 0.35rem;
     }
+    /* Anchos fijos: Mañana / Tarde 1 / Tarde 2 quedan alineadas en todas las secciones */
     .planilla {
       width: 100%;
+      table-layout: fixed;
       border-collapse: collapse;
       font-size: 0.85rem;
     }
@@ -286,7 +290,9 @@ interface Grupo {
       background: #f4fbff;
     }
     .col-cliente {
-      min-width: 120px;
+      width: auto;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
     .nombre {
       font-weight: 600;
@@ -302,7 +308,7 @@ interface Grupo {
       font-weight: 600;
     }
     .col-vuelta {
-      width: 112px;
+      width: 108px;
     }
     .celda {
       display: flex;
@@ -357,7 +363,7 @@ interface Grupo {
       color: var(--pp-exito);
     }
     .col-total {
-      width: 90px;
+      width: 78px;
       text-align: right;
       white-space: nowrap;
     }
@@ -366,9 +372,9 @@ interface Grupo {
       font-size: 0.72rem;
       color: var(--pp-texto-suave);
     }
-    @media (max-width: 560px) {
+    @media (max-width: 1100px) {
       .grupos {
-        grid-template-columns: 1fr;
+        columns: 1;
       }
     }
   `,
