@@ -77,8 +77,8 @@ erDiagram
         int jornada_id FK
         int cliente_id FK
         int repartidor_id FK
-        decimal kg
-        int cajas
+        decimal kg "total del dia (sin cajas)"
+        decimal kg_descuento
         decimal precio_kg
         decimal monto
     }
@@ -87,6 +87,7 @@ erDiagram
         int despacho_id FK
         date fecha
         decimal kg
+        decimal kg_descuento
         decimal monto
         enum estado "VIGENTE | ANULADA"
         string motivo_anulacion
@@ -169,7 +170,9 @@ erDiagram
 |---|---|
 | Replicar las secciones del cuaderno | `clientes.modalidad` + `clientes.repartidor_id` + `clientes.orden` |
 | "Pago día siguiente" se cobra con el Repartidor 2 | Esos clientes quedan asociados al Repartidor 2; el cuadre suma sus despachos del día anterior |
-| Una línea por cliente y día | `UNIQUE(jornada_id, cliente_id)` en `despachos` |
+| Una línea por cliente y día (solo el total de kg) | `UNIQUE(jornada_id, cliente_id)` en `despachos` |
+| Una guía vigente por cliente y día; corregir kg exige anularla | `guias.estado` + validación en la API |
+| Cobro de "pago día siguiente" | El cuadre suma sus líneas del día trabajado anterior al repartidor asignado |
 | Cerrar el día bloquea la edición | `jornadas_despacho.cerrada` |
 | Precio especial por cliente | `clientes.precio_kg_especial` (null = precio general vigente) |
 | Kg no cobrados cada día (ej. Suegra: 1 kg) | `clientes.kg_descuento_diario` → monto = (kg − descuento) × precio |

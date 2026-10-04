@@ -48,10 +48,9 @@ interface GrupoClientes {
     <section class="pp-card proximamente">
       <h2>Próximamente en este módulo</h2>
       <ul>
-        <li>Planilla diaria de kg por cliente</li>
-        <li>Guía impresa por caja con respaldo digital</li>
-        <li>Cuadre automático por repartidor</li>
-        <li>Pagos, saldos y promedio mensual por cliente</li>
+        <li>Registro de pagos y saldos pendientes por cliente</li>
+        <li>Promedio mensual de pan por cliente</li>
+        <li>Historial de despachos por fecha, cliente o repartidor</li>
       </ul>
     </section>
   `,

@@ -151,8 +151,10 @@ model Despacho {
   repartidorId Int?            @map("repartidor_id")
   repartidor   Repartidor?     @relation(fields: [repartidorId], references: [id])
   kg           Decimal         @db.Decimal(10, 3)
-  cajas        Int             @default(1)
+  /// Kg no cobrados ese día (copiado desde el cliente al registrar)
+  kgDescuento  Decimal         @default(0) @map("kg_descuento") @db.Decimal(10, 3)
   precioKg     Decimal         @map("precio_kg") @db.Decimal(10, 2)
+  /// monto = max(kg - kgDescuento, 0) * precioKg  (redondeado a pesos)
   monto        Decimal         @db.Decimal(12, 2)
   creadoPorId  Int?            @map("creado_por_id")
   creadoEn     DateTime        @default(now()) @map("creado_en")
@@ -169,7 +171,7 @@ enum EstadoDocumento {
   ANULADA
 }
 
-/// Guía impresa por caja/cliente. Una vez emitida NO se edita: solo se anula.
+/// Guía impresa por cliente y día (acompaña a sus cajas). Una vez emitida NO se edita: solo se anula.
 model Guia {
   /// El id es el N° correlativo de la guía
   id               Int             @id @default(autoincrement())
@@ -181,6 +183,7 @@ model Guia {
   repartidor       Repartidor?     @relation(fields: [repartidorId], references: [id])
   fecha            DateTime        @db.Date
   kg               Decimal         @db.Decimal(10, 3)
+  kgDescuento      Decimal         @default(0) @map("kg_descuento") @db.Decimal(10, 3)
   precioKg         Decimal         @map("precio_kg") @db.Decimal(10, 2)
   monto            Decimal         @db.Decimal(12, 2)
   estado           EstadoDocumento @default(VIGENTE)

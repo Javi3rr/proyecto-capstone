@@ -8,6 +8,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { HealthController } from './health/health.controller';
+import { CuadreModule } from './cuadre/cuadre.module';
+import { GuiasModule } from './guias/guias.module';
+import { PlanillaModule } from './planilla/planilla.module';
 import { PreciosModule } from './precios/precios.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RepartidoresModule } from './repartidores/repartidores.module';
@@ -21,6 +24,9 @@ import { RepartidoresModule } from './repartidores/repartidores.module';
     ClientesModule,
     RepartidoresModule,
     PreciosModule,
+    PlanillaModule,
+    GuiasModule,
+    CuadreModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -6,7 +6,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
   selector: 'app-despacho-layout',
   imports: [RouterOutlet, RouterLink, RouterLinkActive],
   template: `
-    <nav class="pestanas" aria-label="Secciones de despacho">
+    <nav class="pestanas no-imprimir" aria-label="Secciones de despacho">
       @for (p of pestanas; track p.ruta) {
         <a [routerLink]="p.ruta" routerLinkActive="activa" [routerLinkActiveOptions]="{ exact: p.exacta }">
           {{ p.texto }}
@@ -43,6 +43,9 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 export class DespachoLayoutComponent {
   protected readonly pestanas = [
     { ruta: '/despacho', texto: 'Inicio', exacta: true },
+    { ruta: '/despacho/planilla', texto: 'Planilla del día', exacta: false },
+    { ruta: '/despacho/guias', texto: 'Guías', exacta: false },
+    { ruta: '/despacho/cuadre', texto: 'Cuadre', exacta: false },
     { ruta: '/despacho/clientes', texto: 'Clientes', exacta: false },
     { ruta: '/despacho/repartidores', texto: 'Repartidores', exacta: false },
     { ruta: '/despacho/precios', texto: 'Precio del kg', exacta: false },

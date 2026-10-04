@@ -85,3 +85,79 @@ export const NOMBRE_ROL: Record<Rol, string> = {
   MESON: 'Mesón',
   DESPACHO: 'Despacho',
 };
+
+// ---------- Planilla diaria ----------
+
+export interface LineaDespacho {
+  id: number;
+  clienteId: number;
+  kg: Decimal;
+  kgDescuento: Decimal;
+  precioKg: Decimal;
+  monto: Decimal;
+}
+
+export interface FilaPlanilla {
+  cliente: Cliente;
+  precioKgAplicable: Decimal | null;
+  despacho: LineaDespacho | null;
+  guia: { id: number; impresiones: number } | null;
+}
+
+export interface Planilla {
+  fecha: string;
+  jornada: { id: number | null; cerrada: boolean; cerradaEn: string | null };
+  precioGeneral: Decimal | null;
+  filas: FilaPlanilla[];
+}
+
+// ---------- Guías ----------
+
+export type EstadoDocumento = 'VIGENTE' | 'ANULADA';
+
+export interface Guia {
+  id: number;
+  fecha: string;
+  kg: Decimal;
+  kgDescuento: Decimal;
+  precioKg: Decimal;
+  monto: Decimal;
+  estado: EstadoDocumento;
+  motivoAnulacion: string | null;
+  anuladaEn: string | null;
+  impresiones: number;
+  creadoEn: string;
+  cliente: { id: number; nombre: string; modalidad: ModalidadCliente; direccion: string | null };
+  repartidor: { id: number; nombre: string; patente: string | null } | null;
+  /** Solo en la respuesta de impresión: true si ya se había impreso antes */
+  esCopia?: boolean;
+}
+
+// ---------- Cuadre ----------
+
+export interface LineaCuadre {
+  clienteId: number;
+  cliente: string;
+  kg: number;
+  kgDescuento: number;
+  precioKg: number;
+  monto: number;
+  guiaId: number | null;
+}
+
+export interface CuadreRepartidor {
+  repartidor: { id: number; nombre: string; patente: string | null };
+  cobrosDelDia: LineaCuadre[];
+  cobrosPagoDiaAnterior: LineaCuadre[];
+  entregasPagoManana: LineaCuadre[];
+  totales: { kgEntregados: number; montoACobrar: number; montoPagoManana: number };
+}
+
+export interface Cuadre {
+  fecha: string;
+  cerrada: boolean;
+  fechaAnterior: string | null;
+  repartidores: CuadreRepartidor[];
+  presenciales: { lineas: LineaCuadre[]; totales: { kg: number; monto: number } };
+  totalesDia: { kg: number; monto: number; sinGuia: number };
+}
