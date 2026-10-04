@@ -1,5 +1,5 @@
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, DestroyRef, computed, inject, signal } from '@angular/core';
 import { AuthService } from '../../core/auth.service';
 import { mensajeError } from '../../core/errores';
 import {
@@ -57,6 +57,7 @@ interface Grupo {
     <p class="ayuda pp-texto-suave">
       Escriba los kg en la vuelta que corresponda y presione Enter para pasar al siguiente cliente.
       "Guía" emite e imprime la guía de esa entrega; "Guías" en el encabezado lo hace para toda la columna.
+      N° en naranja = guía emitida sin imprimir · N° en verde = guía impresa.
     </p>
 
     @if (mensaje()) {
@@ -140,7 +141,18 @@ interface Grupo {
                               (change)="guardar(f, c, kg)"
                             />
                             @if (c.guia) {
-                              <button type="button" class="mini mini--guia" [title]="'Reimprimir guía N° ' + c.guia.id" (click)="imprimir(c.guia.id)">
+                              <button
+                                type="button"
+                                class="mini"
+                                [class.mini--guia]="c.guia.impresiones > 0"
+                                [class.mini--pendiente]="c.guia.impresiones === 0"
+                                [title]="
+                                  c.guia.impresiones > 0
+                                    ? 'Guía N° ' + c.guia.id + ' impresa. Clic para reimprimir (sale como COPIA)'
+                                    : 'Guía N° ' + c.guia.id + ' emitida, aún sin imprimir. Clic para imprimir'
+                                "
+                                (click)="imprimir(c.guia.id)"
+                              >
                                 N°{{ c.guia.id }}
                               </button>
                             } @else if (c.despacho && num(c.despacho.kg) > 0) {
@@ -362,6 +374,11 @@ interface Grupo {
       border-color: #bfe5cd;
       color: var(--pp-exito);
     }
+    .mini--pendiente {
+      background: #fdf0e1;
+      border-color: #f3cf9f;
+      color: var(--pp-alerta);
+    }
     .col-total {
       width: 78px;
       text-align: right;
@@ -454,6 +471,10 @@ export class PlanillaComponent {
 
   constructor() {
     this.cargar();
+    // Al volver desde la pestaña de impresión, refleja si las guías se confirmaron como impresas
+    const recargar = () => this.cargar();
+    window.addEventListener('focus', recargar);
+    inject(DestroyRef).onDestroy(() => window.removeEventListener('focus', recargar));
   }
 
   protected num(v: string | number | null | undefined): number {
@@ -546,6 +567,7 @@ export class PlanillaComponent {
     this.api.registrarLinea(this.fecha(), f.cliente.id, c.vuelta, kg).subscribe({
       next: () => {
         this.marcarGuardando(clave, false);
+        if (kg === 0) input.value = '';
         // Se recarga para reflejar el monto y el descuento diario (puede moverse de vuelta)
         this.cargar();
       },
@@ -574,9 +596,6 @@ export class PlanillaComponent {
     this.limpiarAvisos();
     this.api.emitirLote(this.fecha(), { ...g.filtroLote, vuelta }).subscribe({
       next: (r) => {
-        this.mensaje.set(
-          `${g.titulo} · ${NOMBRE_VUELTA[vuelta]}: ${r.creadas.length} guía(s) nueva(s), ${r.ids.length} para imprimir.`,
-        );
         abrirImpresionGuias(r.ids);
         this.cargar();
       },
