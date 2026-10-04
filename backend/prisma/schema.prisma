@@ -101,6 +101,8 @@ model Cliente {
   orden            Int              @default(0)
   /// Precio especial por kg (si es null se usa el precio general vigente)
   precioKgEspecial Decimal?         @map("precio_kg_especial") @db.Decimal(10, 2)
+  /// Kg que no se cobran cada día (ej. Suegra: se descuenta 1 kg diario)
+  kgDescuentoDiario Decimal         @default(0) @map("kg_descuento_diario") @db.Decimal(10, 3)
   activo           Boolean          @default(true)
   creadoEn         DateTime         @default(now()) @map("creado_en")
   actualizadoEn    DateTime         @updatedAt @map("actualizado_en")

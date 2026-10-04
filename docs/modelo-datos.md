@@ -59,6 +59,7 @@ erDiagram
         int repartidor_id FK
         int orden
         decimal precio_kg_especial
+        decimal kg_descuento_diario
         bool activo
     }
     PRECIOS_KG {
@@ -170,6 +171,8 @@ erDiagram
 | "Pago día siguiente" se cobra con el Repartidor 2 | Esos clientes quedan asociados al Repartidor 2; el cuadre suma sus despachos del día anterior |
 | Una línea por cliente y día | `UNIQUE(jornada_id, cliente_id)` en `despachos` |
 | Cerrar el día bloquea la edición | `jornadas_despacho.cerrada` |
+| Precio especial por cliente | `clientes.precio_kg_especial` (null = precio general vigente) |
+| Kg no cobrados cada día (ej. Suegra: 1 kg) | `clientes.kg_descuento_diario` → monto = (kg − descuento) × precio |
 | Un cambio de precio no altera guías emitidas | `precio_kg` se copia en `despachos` y `guias` al momento de emitir |
 | Guía y factura no se editan, solo se anulan | `estado` + `motivo_anulacion` (+ quién y cuándo) |
 | Factura sin duplicados | `UNIQUE(proveedor_id, numero)` |
@@ -181,6 +184,8 @@ erDiagram
 | Trazabilidad general | Tabla `auditoria` + campos `creado_por_id` / `creado_en` |
 
 ## Datos iniciales (seed)
+
+**Precios (cargados solo la primera vez):** precio general **$2.000/kg**. Condiciones especiales: **Suegra** $1.700/kg con 1 kg de descuento diario, **Amasandería** $1.900/kg, **Laguna** y **Maritza** $1.800/kg.
 
 El archivo `backend/prisma/seed.js` carga automáticamente, y sin duplicar si se vuelve a ejecutar:
 

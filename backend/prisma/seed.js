@@ -46,6 +46,21 @@ const CLIENTES = {
   },
 };
 
+// Precio del kg de pan informado por el cliente (octubre 2026)
+const PRECIO_KG_GENERAL = 2000;
+
+const CONDICIONES_ESPECIALES = [
+  { nombre: 'Suegra', precioKg: 1700, kgDescuentoDiario: 1 },
+  { nombre: 'Amasandería', precioKg: 1900 },
+  { nombre: 'Laguna', precioKg: 1800 },
+  { nombre: 'Maritza', precioKg: 1800 },
+];
+
+/** Fecha de hoy (YYYY-MM-DD) en hora de Chile */
+function hoySantiago() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Santiago' }).format(new Date());
+}
+
 async function main() {
   // Usuarios (no se sobrescribe la contraseña si el usuario ya existe)
   for (const u of USUARIOS) {
@@ -86,6 +101,21 @@ async function main() {
         },
       });
     }
+  }
+
+  // Precios: solo la primera vez (si aún no existe ningún precio registrado),
+  // para no pisar cambios hechos después desde el sistema.
+  if ((await prisma.precioKg.count()) === 0) {
+    await prisma.precioKg.create({
+      data: { valor: PRECIO_KG_GENERAL, vigenteDesde: new Date(`${hoySantiago()}T00:00:00Z`) },
+    });
+    for (const c of CONDICIONES_ESPECIALES) {
+      await prisma.cliente.updateMany({
+        where: { nombre: c.nombre },
+        data: { precioKgEspecial: c.precioKg, kgDescuentoDiario: c.kgDescuentoDiario ?? 0 },
+      });
+    }
+    console.log(`[seed] Precio general $${PRECIO_KG_GENERAL}/kg y ${CONDICIONES_ESPECIALES.length} precios especiales cargados`);
   }
 
   const [usuarios, clientes] = await Promise.all([prisma.usuario.count(), prisma.cliente.count()]);

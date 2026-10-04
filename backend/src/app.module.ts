@@ -8,7 +8,9 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { HealthController } from './health/health.controller';
+import { PreciosModule } from './precios/precios.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { RepartidoresModule } from './repartidores/repartidores.module';
 
 @Module({
   imports: [
@@ -17,6 +19,8 @@ import { PrismaModule } from './prisma/prisma.module';
     AuditModule,
     AuthModule,
     ClientesModule,
+    RepartidoresModule,
+    PreciosModule,
   ],
   controllers: [HealthController],
   providers: [
