@@ -21,9 +21,34 @@ export const routes: Routes = [
       {
         path: 'despacho',
         canActivate: [rolGuard('DESPACHO')],
-        title: 'Despacho · Patopan',
         loadComponent: () =>
-          import('./pages/despacho/despacho-inicio.component').then((m) => m.DespachoInicioComponent),
+          import('./pages/despacho/despacho-layout.component').then((m) => m.DespachoLayoutComponent),
+        children: [
+          {
+            path: '',
+            title: 'Despacho · Patopan',
+            loadComponent: () =>
+              import('./pages/despacho/despacho-inicio.component').then((m) => m.DespachoInicioComponent),
+          },
+          {
+            path: 'clientes',
+            title: 'Clientes · Patopan',
+            loadComponent: () =>
+              import('./pages/despacho/clientes.component').then((m) => m.ClientesComponent),
+          },
+          {
+            path: 'repartidores',
+            title: 'Repartidores · Patopan',
+            loadComponent: () =>
+              import('./pages/despacho/repartidores.component').then((m) => m.RepartidoresComponent),
+          },
+          {
+            path: 'precios',
+            title: 'Precio del kg · Patopan',
+            loadComponent: () =>
+              import('./pages/despacho/precios.component').then((m) => m.PreciosComponent),
+          },
+        ],
       },
       {
         path: 'meson',

@@ -130,6 +130,30 @@ a {
   font-size: 0.9rem;
 }
 
+.pp-btn.pp-btn--peligro {
+  background: var(--pp-blanco);
+  color: var(--pp-error);
+  border-color: #f2c2c2;
+  &:hover:not(:disabled) {
+    background: #fdecec;
+  }
+}
+
+.pp-btn.pp-btn--chico {
+  min-height: 34px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.82rem;
+}
+
+.pp-aviso-ok {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: #e7f6ed;
+  color: var(--pp-exito);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
 .pp-chip {
   display: inline-block;
   padding: 0.15rem 0.6rem;

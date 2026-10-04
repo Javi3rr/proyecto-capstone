@@ -37,6 +37,26 @@ export class AuditService {
     }
   }
 
+  /**
+   * Registra un cambio de datos con el estado anterior y el nuevo.
+   * Ej: registrarCambio(userId, 'ACTUALIZAR', 'cliente', 5, antes, despues)
+   */
+  async registrarCambio(
+    usuarioId: number | undefined,
+    accion: 'CREAR' | 'ACTUALIZAR' | 'DESACTIVAR' | 'REACTIVAR',
+    entidad: string,
+    entidadId: number,
+    antes: unknown,
+    despues: unknown,
+  ): Promise<void> {
+    await this.registrar({
+      usuarioId,
+      accion,
+      recurso: `${entidad}/${entidadId}`,
+      detalle: { antes: antes ?? null, despues: despues ?? null },
+    });
+  }
+
   async listar(filtro: { usuarioId?: number; desde?: Date; hasta?: Date; limite?: number }) {
     const filas = await this.prisma.auditoria.findMany({
       where: {
