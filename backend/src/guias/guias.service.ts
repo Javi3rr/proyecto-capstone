@@ -28,7 +28,7 @@ export class GuiasService {
         estado: filtro.incluirAnuladas ? undefined : 'VIGENTE',
       },
       include: INCLUDE_GUIA,
-      orderBy: { id: 'desc' },
+      orderBy: [{ fecha: 'desc' }, { vuelta: 'asc' }, { id: 'desc' }],
       take: 500,
     });
   }
@@ -39,7 +39,7 @@ export class GuiasService {
     return g;
   }
 
-  /** Emite la guía de una línea de la planilla (una guía vigente por cliente y día) */
+  /** Emite la guía de una línea de la planilla (una guía vigente por cliente y vuelta) */
   async emitir(despachoId: number, usuarioId?: number) {
     const despacho = await this.prisma.despacho.findUnique({
       where: { id: despachoId },
@@ -51,7 +51,11 @@ export class GuiasService {
   }
 
   /** Emite todas las guías pendientes de un día (o de un grupo) y devuelve los N° a imprimir */
-  async emitirLote(fecha: string, filtro: { modalidad?: ModalidadCliente; repartidorId?: number }, usuarioId?: number) {
+  async emitirLote(
+    fecha: string,
+    filtro: { modalidad?: ModalidadCliente; repartidorId?: number; vuelta?: number },
+    usuarioId?: number,
+  ) {
     const jornada = await this.prisma.jornadaDespacho.findUnique({ where: { fecha: fechaDesdeISO(fecha) } });
     if (!jornada) throw new BadRequestException('No hay registros en la planilla para esa fecha');
 
@@ -61,10 +65,11 @@ export class GuiasService {
         kg: { gt: 0 },
         cliente: { modalidad: filtro.modalidad },
         repartidorId: filtro.repartidorId,
+        vuelta: filtro.vuelta,
       },
       include: { jornada: true, guias: true, cliente: { select: { orden: true } } },
     });
-    despachos.sort((a, b) => a.cliente.orden - b.cliente.orden);
+    despachos.sort((a, b) => a.vuelta - b.vuelta || a.cliente.orden - b.cliente.orden);
 
     const creadas: number[] = [];
     const ids: number[] = [];
@@ -119,7 +124,7 @@ export class GuiasService {
   private async crearDesde(d: DespachoConGuias, usuarioId?: number) {
     if (Number(d.kg) <= 0) throw new BadRequestException('No se puede emitir una guía con 0 kg');
     const vigente = d.guias.find((g) => g.estado === 'VIGENTE');
-    if (vigente) throw new ConflictException(`Ya existe la guía N° ${vigente.id} vigente para este cliente y día`);
+    if (vigente) throw new ConflictException(`Ya existe la guía N° ${vigente.id} vigente para este cliente y vuelta`);
 
     const guia = await this.prisma.guia.create({
       data: {
@@ -127,6 +132,7 @@ export class GuiasService {
         clienteId: d.clienteId,
         repartidorId: d.repartidorId,
         fecha: d.jornada.fecha,
+        vuelta: d.vuelta,
         kg: d.kg,
         kgDescuento: d.kgDescuento,
         precioKg: d.precioKg,

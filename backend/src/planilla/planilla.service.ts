@@ -12,6 +12,9 @@ export interface UsuarioAccion {
   rol?: Rol;
 }
 
+/** Columnas del cuaderno: 1 = mañana, 2 = tarde 1, 3 = tarde 2 */
+export const VUELTAS = [1, 2, 3] as const;
+
 @Injectable()
 export class PlanillaService {
   constructor(
@@ -22,7 +25,7 @@ export class PlanillaService {
 
   /**
    * Planilla de un día: todos los clientes activos (en el orden del cuaderno)
-   * + los inactivos que tengan registro ese día, con su línea y guía vigente.
+   * + los inactivos que tengan registro ese día, con sus 3 vueltas y la guía vigente de cada una.
    */
   async obtener(fecha: string) {
     const jornada = await this.prisma.jornadaDespacho.findUnique({ where: { fecha: fechaDesdeISO(fecha) } });
@@ -33,10 +36,10 @@ export class PlanillaService {
           include: { guias: { where: { estado: 'VIGENTE' }, select: { id: true, impresiones: true } } },
         })
       : [];
-    const porCliente = new Map(despachos.map((d) => [d.clienteId, d]));
+    const idsConRegistro = [...new Set(despachos.map((d) => d.clienteId))];
 
     const clientes = await this.prisma.cliente.findMany({
-      where: { OR: [{ activo: true }, { id: { in: [...porCliente.keys()] } }] },
+      where: { OR: [{ activo: true }, { id: { in: idsConRegistro } }] },
       include: { repartidor: { select: { id: true, nombre: true } } },
       orderBy: [{ orden: 'asc' }, { nombre: 'asc' }],
     });
@@ -49,28 +52,30 @@ export class PlanillaService {
         ? { id: jornada.id, cerrada: jornada.cerrada, cerradaEn: jornada.cerradaEn }
         : { id: null, cerrada: false, cerradaEn: null },
       precioGeneral: general?.valor ?? null,
-      filas: clientes.map((c) => {
-        const d = porCliente.get(c.id);
-        let despacho = null;
-        let guia = null;
-        if (d) {
-          const { guias, ...resto } = d;
-          despacho = resto;
-          guia = guias[0] ?? null;
-        }
-        return {
-          cliente: c,
-          /** Precio que se aplicaría hoy (el de la línea guardada puede diferir si cambió después) */
-          precioKgAplicable: c.precioKgEspecial ?? general?.valor ?? null,
-          despacho,
-          guia,
-        };
-      }),
+      filas: clientes.map((c) => ({
+        cliente: c,
+        /** Precio que se aplicaría hoy (el de una línea guardada puede diferir si cambió después) */
+        precioKgAplicable: c.precioKgEspecial ?? general?.valor ?? null,
+        vueltas: VUELTAS.map((v) => {
+          const d = despachos.find((x) => x.clienteId === c.id && x.vuelta === v);
+          if (!d) return { vuelta: v, despacho: null, guia: null };
+          const { guias, ...despacho } = d;
+          return { vuelta: v, despacho, guia: guias[0] ?? null };
+        }),
+      })),
     };
   }
 
-  /** Registra o corrige la línea de un cliente (total de kg del día) */
-  async registrarLinea(fecha: string, clienteId: number, dto: RegistrarLineaDto, usuario: UsuarioAccion) {
+  /** Registra o corrige los kg de un cliente en una vuelta del día */
+  async registrarLinea(
+    fecha: string,
+    clienteId: number,
+    vuelta: number,
+    dto: RegistrarLineaDto,
+    usuario: UsuarioAccion,
+  ) {
+    if (!VUELTAS.includes(vuelta as 1 | 2 | 3)) throw new BadRequestException('La vuelta debe ser 1, 2 o 3');
+
     const cliente = await this.prisma.cliente.findUnique({ where: { id: clienteId } });
     if (!cliente) throw new NotFoundException('Cliente no encontrado');
 
@@ -81,10 +86,11 @@ export class PlanillaService {
     });
     this.validarAbierta(jornada.cerrada, usuario);
 
-    const existente = await this.prisma.despacho.findUnique({
-      where: { jornadaId_clienteId: { jornadaId: jornada.id, clienteId } },
+    const lineasDelDia = await this.prisma.despacho.findMany({
+      where: { jornadaId: jornada.id, clienteId },
       include: { guias: true },
     });
+    const existente = lineasDelDia.find((l) => l.vuelta === vuelta);
 
     if (!existente && !cliente.activo) {
       throw new BadRequestException('El cliente está desactivado');
@@ -92,11 +98,11 @@ export class PlanillaService {
     const guiaVigente = existente?.guias.find((g) => g.estado === 'VIGENTE');
     if (guiaVigente) {
       throw new ConflictException(
-        `Este cliente ya tiene la guía N° ${guiaVigente.id} emitida. Para corregir los kg, primero anule la guía.`,
+        `Esta vuelta ya tiene la guía N° ${guiaVigente.id} emitida. Para corregir los kg, primero anule la guía.`,
       );
     }
 
-    // kg = 0: el cliente no lleva pan ese día
+    // kg = 0: el cliente no lleva pan en esa vuelta
     if (dto.kg === 0) {
       if (!existente) return { eliminado: true };
       if (existente.guias.length === 0) {
@@ -105,10 +111,13 @@ export class PlanillaService {
         // Tiene guías anuladas asociadas: se conserva la línea en 0 por trazabilidad
         await this.prisma.despacho.update({
           where: { id: existente.id },
-          data: { kg: 0, monto: 0, creadoPorId: usuario.id },
+          data: { kg: 0, kgDescuento: 0, monto: 0, creadoPorId: usuario.id },
         });
       }
-      await this.audit.registrarCambio(usuario.id, 'ACTUALIZAR', 'despacho', existente.id, existente, { kg: 0 });
+      await this.audit.registrarCambio(usuario.id, 'ACTUALIZAR', 'despacho', existente.id,
+        { vuelta, kg: existente.kg, monto: existente.monto }, { vuelta, kg: 0 });
+      // Si esta vuelta llevaba el descuento diario, pasa a otra vuelta del día
+      await this.redistribuirDescuento(jornada.id, clienteId);
       return { eliminado: true };
     }
 
@@ -117,19 +126,25 @@ export class PlanillaService {
       throw new BadRequestException('No hay un precio del kg vigente para esta fecha. Defínalo en "Precio del kg".');
     }
 
+    // El descuento diario (ej. Suegra 1 kg) se aplica una sola vez al día
+    const otraVueltaConDescuento = lineasDelDia.some(
+      (l) => l.vuelta !== vuelta && Number(l.kgDescuento) > 0 && Number(l.kg) > 0,
+    );
+    const kgDescuento = otraVueltaConDescuento ? 0 : cliente.kgDescuentoDiario;
+
     const datos = {
       kg: dto.kg,
-      kgDescuento: cliente.kgDescuentoDiario,
+      kgDescuento,
       precioKg: precio,
-      monto: calcularMonto(dto.kg, cliente.kgDescuentoDiario, precio),
+      monto: calcularMonto(dto.kg, kgDescuento, precio),
       repartidorId: cliente.repartidorId,
       creadoPorId: usuario.id ?? null,
     };
 
     const guardado = await this.prisma.despacho.upsert({
-      where: { jornadaId_clienteId: { jornadaId: jornada.id, clienteId } },
+      where: { jornadaId_clienteId_vuelta: { jornadaId: jornada.id, clienteId, vuelta } },
       update: datos,
-      create: { ...datos, jornadaId: jornada.id, clienteId },
+      create: { ...datos, jornadaId: jornada.id, clienteId, vuelta },
     });
 
     await this.audit.registrarCambio(
@@ -137,10 +152,36 @@ export class PlanillaService {
       existente ? 'ACTUALIZAR' : 'CREAR',
       'despacho',
       guardado.id,
-      existente ? { kg: existente.kg, precioKg: existente.precioKg, monto: existente.monto } : null,
+      existente ? { vuelta, kg: existente.kg, precioKg: existente.precioKg, monto: existente.monto } : null,
       guardado,
     );
     return guardado;
+  }
+
+  /**
+   * Si ninguna vuelta del día lleva el descuento diario del cliente, se asigna
+   * a la primera vuelta con pan que aún no tenga guía emitida.
+   */
+  private async redistribuirDescuento(jornadaId: number, clienteId: number) {
+    const cliente = await this.prisma.cliente.findUnique({ where: { id: clienteId } });
+    if (!cliente || Number(cliente.kgDescuentoDiario) <= 0) return;
+
+    const lineas = await this.prisma.despacho.findMany({
+      where: { jornadaId, clienteId, kg: { gt: 0 } },
+      include: { guias: { where: { estado: 'VIGENTE' } } },
+      orderBy: { vuelta: 'asc' },
+    });
+    if (lineas.some((l) => Number(l.kgDescuento) > 0)) return;
+
+    const candidata = lineas.find((l) => l.guias.length === 0);
+    if (!candidata) return;
+    await this.prisma.despacho.update({
+      where: { id: candidata.id },
+      data: {
+        kgDescuento: cliente.kgDescuentoDiario,
+        monto: calcularMonto(candidata.kg, cliente.kgDescuentoDiario, candidata.precioKg),
+      },
+    });
   }
 
   /** Cierra el día: la planilla queda bloqueada (solo ADMIN puede corregir) */

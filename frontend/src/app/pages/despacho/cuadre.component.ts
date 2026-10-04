@@ -1,7 +1,7 @@
 import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { mensajeError } from '../../core/errores';
-import { Cuadre } from '../../core/models';
+import { Cuadre, LineaCuadre } from '../../core/models';
 import { DespachoService, hoyISO, sumarDias } from './despacho.service';
 
 /** [DESPACHO] Cuadre automático por repartidor (kg entregados y dinero a rendir) */
@@ -29,9 +29,10 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
 
     @if (cuadre(); as c) {
       @if (c.totalesDia.sinGuia > 0) {
-        <p class="pp-alerta-error no-imprimir">{{ c.totalesDia.sinGuia }} cliente(s) del día aún no tienen guía emitida.</p>
+        <p class="pp-alerta-error no-imprimir">{{ c.totalesDia.sinGuia }} entrega(s) del día aún no tienen guía emitida.</p>
       }
 
+      <div class="bloques">
       @for (r of c.repartidores; track r.repartidor.id) {
         <section class="pp-card bloque">
           <div class="bloque__cabecera">
@@ -44,7 +45,7 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
 
           <table class="pp-tabla">
             <thead>
-              <tr><th>Cliente</th><th class="num">Kg</th><th class="num">Precio kg</th><th class="num">Monto</th><th>Guía</th><th>Concepto</th></tr>
+              <tr><th>Cliente</th><th class="num">Kg</th><th class="num">Precio kg</th><th class="num">Monto</th><th>Guías</th><th>Concepto</th></tr>
             </thead>
             <tbody>
               @for (l of r.cobrosDelDia; track l.clienteId) {
@@ -53,7 +54,7 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
                   <td class="num">{{ l.kg | number: '1.0-3' }}</td>
                   <td class="num">{{ l.precioKg | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</td>
                   <td class="num">{{ l.monto | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</td>
-                  <td>{{ l.guiaId ?? 'sin guía' }}</td>
+                  <td>{{ guiasTexto(l) }}</td>
                   <td>Cobro del día</td>
                 </tr>
               }
@@ -63,7 +64,7 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
                   <td class="num">{{ l.kg | number: '1.0-3' }}</td>
                   <td class="num">{{ l.precioKg | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</td>
                   <td class="num">{{ l.monto | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</td>
-                  <td>{{ l.guiaId ?? 'sin guía' }}</td>
+                  <td>{{ guiasTexto(l) }}</td>
                   <td>Pago del {{ c.fechaAnterior | date: 'dd-MM' : 'UTC' }}</td>
                 </tr>
               }
@@ -96,6 +97,7 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
       } @empty {
         <section class="pp-card"><p class="pp-texto-suave">No hay despachos de reparto para esta fecha.</p></section>
       }
+      </div>
 
       @if (c.presenciales.lineas.length > 0) {
         <section class="pp-card bloque">
@@ -108,7 +110,7 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
           </div>
           <table class="pp-tabla">
             <thead>
-              <tr><th>Cliente</th><th class="num">Kg</th><th class="num">Monto</th><th>Guía</th></tr>
+              <tr><th>Cliente</th><th class="num">Kg</th><th class="num">Monto</th><th>Guías</th></tr>
             </thead>
             <tbody>
               @for (l of c.presenciales.lineas; track l.clienteId) {
@@ -116,7 +118,7 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
                   <td>{{ l.cliente }}</td>
                   <td class="num">{{ l.kg | number: '1.0-3' }}</td>
                   <td class="num">{{ l.monto | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</td>
-                  <td>{{ l.guiaId ?? 'sin guía' }}</td>
+                  <td>{{ guiasTexto(l) }}</td>
                 </tr>
               }
             </tbody>
@@ -157,9 +159,31 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
       border-radius: 8px;
       font: 600 1rem var(--pp-fuente);
     }
+    .bloques {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
+      gap: 0.75rem;
+      align-items: start;
+      margin-bottom: 0.75rem;
+    }
     .bloque {
-      margin-bottom: 1rem;
       break-inside: avoid;
+      padding: 0.75rem 0.9rem;
+      font-size: 0.88rem;
+    }
+    .bloque .pp-tabla th,
+    .bloque .pp-tabla td {
+      padding: 0.3rem 0.4rem;
+    }
+    @media (max-width: 520px) {
+      .bloques {
+        grid-template-columns: 1fr;
+      }
+    }
+    @media print {
+      .bloques {
+        grid-template-columns: 1fr;
+      }
     }
     .bloque__cabecera {
       display: flex;
@@ -240,6 +264,13 @@ export class CuadreComponent {
 
   constructor() {
     this.cargar();
+  }
+
+  /** N° de guías de las vueltas del cliente; avisa si alguna entrega quedó sin guía */
+  protected guiasTexto(l: LineaCuadre): string {
+    const nums = l.guiaIds.map((id) => `N°${id}`).join(', ');
+    const falta = l.sinGuia > 0 ? `${l.sinGuia} sin guía` : '';
+    return [nums, falta].filter(Boolean).join(' · ') || '—';
   }
 
   protected nombres(lineas: { cliente: string }[]): string {

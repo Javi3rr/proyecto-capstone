@@ -35,7 +35,7 @@ export class GuiasController {
 
   @Post('lote')
   emitirLote(@Body() dto: EmitirLoteDto, @CurrentUser() user: JwtPayload) {
-    return this.guias.emitirLote(dto.fecha, { modalidad: dto.modalidad, repartidorId: dto.repartidorId }, user.sub);
+    return this.guias.emitirLote(dto.fecha, { modalidad: dto.modalidad, repartidorId: dto.repartidorId, vuelta: dto.vuelta }, user.sub);
   }
 
   /** Devuelve las guías listas para imprimir y suma 1 a su contador de impresiones */

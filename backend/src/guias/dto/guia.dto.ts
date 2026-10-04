@@ -9,7 +9,9 @@ import {
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 import { ModalidadCliente } from '@prisma/client';
@@ -32,6 +34,13 @@ export class EmitirLoteDto {
   @IsOptional()
   @IsInt()
   repartidorId?: number;
+
+  /** 1 = mañana, 2 = tarde 1, 3 = tarde 2 */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(3)
+  vuelta?: number;
 }
 
 export class ImprimirGuiasDto {

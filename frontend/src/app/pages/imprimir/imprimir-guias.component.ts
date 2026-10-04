@@ -2,7 +2,7 @@ import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { mensajeError } from '../../core/errores';
-import { Guia, NOMBRE_MODALIDAD } from '../../core/models';
+import { Guia, NOMBRE_MODALIDAD, NOMBRE_VUELTA } from '../../core/models';
 import { LogoComponent } from '../../layout/logo.component';
 import { DespachoService } from '../despacho/despacho.service';
 
@@ -42,6 +42,7 @@ import { DespachoService } from '../despacho/despacho.service';
               <p class="tipo">GUÍA DE ENTREGA</p>
               <p class="numero">N° {{ folio(g.id) }}</p>
               <p>Fecha: <strong>{{ g.fecha | date: 'dd-MM-yyyy' : 'UTC' }}</strong></p>
+              <p>Entrega: <strong>{{ nombreVuelta[g.vuelta] }}</strong></p>
             </div>
           </header>
 
@@ -232,6 +233,7 @@ export class ImprimirGuiasComponent {
   private readonly route = inject(ActivatedRoute);
 
   protected readonly nombreModalidad = NOMBRE_MODALIDAD;
+  protected readonly nombreVuelta = NOMBRE_VUELTA;
   protected readonly guias = signal<Guia[]>([]);
   protected readonly error = signal<string | null>(null);
 

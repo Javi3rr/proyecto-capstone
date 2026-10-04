@@ -12,6 +12,7 @@ import {
   PrecioKg,
   Repartidor,
   RepartidorForm,
+  Vuelta,
 } from '../../core/models';
 
 /** Acceso a la API del módulo Despacho */
@@ -73,9 +74,12 @@ export class DespachoService {
     return this.http.get<Planilla>(`/api/planilla/${fecha}`);
   }
 
-  /** kg = 0 elimina la línea del día */
-  registrarLinea(fecha: string, clienteId: number, kg: number): Observable<LineaDespacho | { eliminado: true }> {
-    return this.http.put<LineaDespacho | { eliminado: true }>(`/api/planilla/${fecha}/clientes/${clienteId}`, { kg });
+  /** Registra los kg de un cliente en una vuelta (kg = 0 elimina la línea) */
+  registrarLinea(fecha: string, clienteId: number, vuelta: Vuelta, kg: number): Observable<LineaDespacho | { eliminado: true }> {
+    return this.http.put<LineaDespacho | { eliminado: true }>(
+      `/api/planilla/${fecha}/clientes/${clienteId}/vueltas/${vuelta}`,
+      { kg },
+    );
   }
 
   cerrarDia(fecha: string): Observable<unknown> {
@@ -91,7 +95,10 @@ export class DespachoService {
     return this.http.post<Guia>('/api/guias', { despachoId });
   }
 
-  emitirLote(fecha: string, filtro: { modalidad?: ModalidadCliente; repartidorId?: number }): Observable<{ creadas: number[]; ids: number[] }> {
+  emitirLote(
+    fecha: string,
+    filtro: { modalidad?: ModalidadCliente; repartidorId?: number; vuelta?: Vuelta },
+  ): Observable<{ creadas: number[]; ids: number[] }> {
     return this.http.post<{ creadas: number[]; ids: number[] }>('/api/guias/lote', { fecha, ...filtro });
   }
 

@@ -17,15 +17,16 @@ export class PlanillaController {
     return this.planilla.obtener(fecha);
   }
 
-  /** PUT /api/planilla/2026-10-04/clientes/5  { "kg": 12 } */
-  @Put(':fecha/clientes/:clienteId')
+  /** PUT /api/planilla/2026-10-04/clientes/5/vueltas/1  { "kg": 12 }   (vuelta 1 = mañana, 2 y 3 = tarde) */
+  @Put(':fecha/clientes/:clienteId/vueltas/:vuelta')
   registrar(
     @Param('fecha', ParseFechaPipe) fecha: string,
     @Param('clienteId', ParseIntPipe) clienteId: number,
+    @Param('vuelta', ParseIntPipe) vuelta: number,
     @Body() dto: RegistrarLineaDto,
     @CurrentUser() user: JwtPayload,
   ) {
-    return this.planilla.registrarLinea(fecha, clienteId, dto, { id: user.sub, rol: user.rol });
+    return this.planilla.registrarLinea(fecha, clienteId, vuelta, dto, { id: user.sub, rol: user.rol });
   }
 
   @Post(':fecha/cerrar')

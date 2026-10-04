@@ -1,7 +1,7 @@
 import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
 import { mensajeError } from '../../core/errores';
-import { Cliente, Guia } from '../../core/models';
+import { Cliente, Guia, NOMBRE_VUELTA } from '../../core/models';
 import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service';
 
 /** [DESPACHO] Respaldo digital de guías: búsqueda, reimpresión (PDF) y anulación */
@@ -58,6 +58,7 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
             <tr>
               <th>N°</th>
               <th>Fecha</th>
+              <th>Vuelta</th>
               <th>Cliente</th>
               <th>Repartidor</th>
               <th class="num">Kg</th>
@@ -72,6 +73,7 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
               <tr [class.anulada]="g.estado === 'ANULADA'">
                 <td><strong>{{ g.id }}</strong></td>
                 <td>{{ g.fecha | date: 'dd-MM-yyyy' : 'UTC' }}</td>
+                <td>{{ nombreVuelta[g.vuelta] }}</td>
                 <td>{{ g.cliente.nombre }}</td>
                 <td>{{ g.repartidor?.nombre ?? 'Presencial' }}</td>
                 <td class="num">{{ num(g.kg) | number: '1.0-3' }}</td>
@@ -92,7 +94,7 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
                 </td>
               </tr>
             } @empty {
-              <tr><td colspan="9" class="pp-texto-suave">{{ cargando() ? 'Buscando…' : 'No hay guías para ese filtro.' }}</td></tr>
+              <tr><td colspan="10" class="pp-texto-suave">{{ cargando() ? 'Buscando…' : 'No hay guías para ese filtro.' }}</td></tr>
             }
           </tbody>
         </table>
@@ -150,6 +152,7 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
 export class GuiasComponent {
   private readonly api = inject(DespachoService);
 
+  protected readonly nombreVuelta = NOMBRE_VUELTA;
   protected readonly filtroFecha = hoyISO();
   protected readonly guias = signal<Guia[]>([]);
   protected readonly clientes = signal<Cliente[]>([]);

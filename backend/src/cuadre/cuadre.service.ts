@@ -10,29 +10,40 @@ const INCLUDE_LINEA = {
 
 type DespachoLinea = Prisma.DespachoGetPayload<{ include: typeof INCLUDE_LINEA }>;
 
+/** Resumen de un cliente en el día (suma de sus vueltas) */
 export interface LineaCuadre {
   clienteId: number;
   cliente: string;
+  vueltas: number[];
   kg: number;
   kgDescuento: number;
   precioKg: number;
   monto: number;
-  guiaId: number | null;
+  guiaIds: number[];
+  /** Vueltas con pan que aún no tienen guía emitida */
+  sinGuia: number;
 }
 
-function aLinea(d: DespachoLinea): LineaCuadre {
-  return {
-    clienteId: d.clienteId,
-    cliente: d.cliente.nombre,
-    kg: Number(d.kg),
-    kgDescuento: Number(d.kgDescuento),
-    precioKg: Number(d.precioKg),
-    monto: Number(d.monto),
-    guiaId: d.guias[0]?.id ?? null,
-  };
+/** Agrupa las líneas (una por vuelta) en una fila por cliente, en el orden de la planilla */
+function agrupar(despachos: DespachoLinea[]): LineaCuadre[] {
+  const porCliente = new Map<number, DespachoLinea[]>();
+  for (const d of [...despachos].sort((a, b) => a.cliente.orden - b.cliente.orden || a.vuelta - b.vuelta)) {
+    porCliente.set(d.clienteId, [...(porCliente.get(d.clienteId) ?? []), d]);
+  }
+  return [...porCliente.values()].map((ls) => ({
+    clienteId: ls[0].clienteId,
+    cliente: ls[0].cliente.nombre,
+    vueltas: ls.map((l) => l.vuelta),
+    kg: Math.round(ls.reduce((t, l) => t + Number(l.kg), 0) * 1000) / 1000,
+    kgDescuento: ls.reduce((t, l) => t + Number(l.kgDescuento), 0),
+    precioKg: Number(ls[0].precioKg),
+    monto: ls.reduce((t, l) => t + Number(l.monto), 0),
+    guiaIds: ls.flatMap((l) => l.guias.map((g) => g.id)),
+    sinGuia: ls.filter((l) => l.guias.length === 0).length,
+  }));
 }
 
-const sumar = (lineas: LineaCuadre[], campo: 'kg' | 'monto') =>
+const sumar = (lineas: LineaCuadre[], campo: 'kg' | 'monto' | 'sinGuia') =>
   Math.round(lineas.reduce((t, l) => t + l[campo], 0) * 1000) / 1000;
 
 /**
@@ -63,9 +74,6 @@ export class CuadreService {
           })
         : Promise.resolve([] as DespachoLinea[]),
     ]);
-    const ordenar = (a: DespachoLinea, b: DespachoLinea) => a.cliente.orden - b.cliente.orden;
-    hoy.sort(ordenar);
-    previos.sort(ordenar);
 
     const idsRepartidores = new Set(
       [...hoy, ...previos].map((d) => d.repartidorId).filter((id): id is number => id !== null),
@@ -77,13 +85,13 @@ export class CuadreService {
     });
 
     const porRepartidor = repartidores.map((r) => {
-      const cobrosDelDia = hoy
-        .filter((d) => d.repartidorId === r.id && d.cliente.modalidad === 'REPARTO')
-        .map(aLinea);
-      const cobrosPagoDiaAnterior = previos.filter((d) => d.repartidorId === r.id).map(aLinea);
-      const entregasPagoManana = hoy
-        .filter((d) => d.repartidorId === r.id && d.cliente.modalidad === 'PAGO_DIA_SIGUIENTE')
-        .map(aLinea);
+      const cobrosDelDia = agrupar(
+        hoy.filter((d) => d.repartidorId === r.id && d.cliente.modalidad === 'REPARTO'),
+      );
+      const cobrosPagoDiaAnterior = agrupar(previos.filter((d) => d.repartidorId === r.id));
+      const entregasPagoManana = agrupar(
+        hoy.filter((d) => d.repartidorId === r.id && d.cliente.modalidad === 'PAGO_DIA_SIGUIENTE'),
+      );
       const entregados = [...cobrosDelDia, ...entregasPagoManana];
       const aCobrar = [...cobrosDelDia, ...cobrosPagoDiaAnterior];
       return {
@@ -99,8 +107,8 @@ export class CuadreService {
       };
     });
 
-    const presenciales = hoy.filter((d) => d.cliente.modalidad === 'PRESENCIAL').map(aLinea);
-    const todas = hoy.map(aLinea);
+    const presenciales = agrupar(hoy.filter((d) => d.cliente.modalidad === 'PRESENCIAL'));
+    const todas = agrupar(hoy);
 
     return {
       fecha,
@@ -116,7 +124,8 @@ export class CuadreService {
       totalesDia: {
         kg: sumar(todas, 'kg'),
         monto: sumar(todas, 'monto'),
-        sinGuia: todas.filter((l) => l.guiaId === null).length,
+        /** Vueltas con pan sin guía emitida */
+        sinGuia: sumar(todas, 'sinGuia'),
       },
     };
   }

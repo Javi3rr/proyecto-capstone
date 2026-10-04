@@ -76,8 +76,9 @@ erDiagram
         int id PK
         int jornada_id FK
         int cliente_id FK
+        int vuelta "1 manana, 2 tarde 1, 3 tarde 2"
         int repartidor_id FK
-        decimal kg "total del dia (sin cajas)"
+        decimal kg "kg de esa vuelta"
         decimal kg_descuento
         decimal precio_kg
         decimal monto
@@ -86,6 +87,7 @@ erDiagram
         int id PK "N correlativo"
         int despacho_id FK
         date fecha
+        int vuelta
         decimal kg
         decimal kg_descuento
         decimal monto
@@ -170,8 +172,9 @@ erDiagram
 |---|---|
 | Replicar las secciones del cuaderno | `clientes.modalidad` + `clientes.repartidor_id` + `clientes.orden` |
 | "Pago día siguiente" se cobra con el Repartidor 2 | Esos clientes quedan asociados al Repartidor 2; el cuadre suma sus despachos del día anterior |
-| Una línea por cliente y día (solo el total de kg) | `UNIQUE(jornada_id, cliente_id)` en `despachos` |
-| Una guía vigente por cliente y día; corregir kg exige anularla | `guias.estado` + validación en la API |
+| 3 vueltas al día como las columnas del cuaderno (mañana, tarde 1, tarde 2) | `despachos.vuelta` + `UNIQUE(jornada_id, cliente_id, vuelta)` |
+| Una guía por vuelta; corregir kg exige anularla | `guias.vuelta` + `guias.estado` + validación en la API |
+| El descuento diario se aplica una sola vez al día | Se asigna a la primera vuelta con pan (`despachos.kg_descuento`) |
 | Cobro de "pago día siguiente" | El cuadre suma sus líneas del día trabajado anterior al repartidor asignado |
 | Cerrar el día bloquea la edición | `jornadas_despacho.cerrada` |
 | Precio especial por cliente | `clientes.precio_kg_especial` (null = precio general vigente) |

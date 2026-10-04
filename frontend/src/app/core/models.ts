@@ -88,20 +88,31 @@ export const NOMBRE_ROL: Record<Rol, string> = {
 
 // ---------- Planilla diaria ----------
 
+/** Vueltas del día, igual que las columnas del cuaderno */
+export type Vuelta = 1 | 2 | 3;
+export const VUELTAS: Vuelta[] = [1, 2, 3];
+export const NOMBRE_VUELTA: Record<Vuelta, string> = { 1: 'Mañana', 2: 'Tarde 1', 3: 'Tarde 2' };
+
 export interface LineaDespacho {
   id: number;
   clienteId: number;
+  vuelta: Vuelta;
   kg: Decimal;
   kgDescuento: Decimal;
   precioKg: Decimal;
   monto: Decimal;
 }
 
+export interface VueltaPlanilla {
+  vuelta: Vuelta;
+  despacho: LineaDespacho | null;
+  guia: { id: number; impresiones: number } | null;
+}
+
 export interface FilaPlanilla {
   cliente: Cliente;
   precioKgAplicable: Decimal | null;
-  despacho: LineaDespacho | null;
-  guia: { id: number; impresiones: number } | null;
+  vueltas: VueltaPlanilla[];
 }
 
 export interface Planilla {
@@ -118,6 +129,7 @@ export type EstadoDocumento = 'VIGENTE' | 'ANULADA';
 export interface Guia {
   id: number;
   fecha: string;
+  vuelta: Vuelta;
   kg: Decimal;
   kgDescuento: Decimal;
   precioKg: Decimal;
@@ -138,11 +150,13 @@ export interface Guia {
 export interface LineaCuadre {
   clienteId: number;
   cliente: string;
+  vueltas: Vuelta[];
   kg: number;
   kgDescuento: number;
   precioKg: number;
   monto: number;
-  guiaId: number | null;
+  guiaIds: number[];
+  sinGuia: number;
 }
 
 export interface CuadreRepartidor {
