@@ -72,9 +72,14 @@ interface Funcion {
 })
 export class MesonInicioComponent {
   protected readonly funciones: Funcion[] = [
+    {
+      titulo: 'Facturas de mercadería',
+      descripcion: 'Registrar facturas de proveedores con su foto o PDF; el stock sube automáticamente.',
+      ruta: '/meson/facturas',
+    },
     { titulo: 'Productos', descripcion: 'Catálogo de pan, cecinas y mercadería con el código PLU de la balanza.', ruta: '/meson/productos' },
     { titulo: 'Proveedores', descripcion: 'Empresas que entregan mercadería, con RUT validado.', ruta: '/meson/proveedores' },
-    { titulo: 'Facturas de mercadería', descripcion: 'Registrar facturas de proveedores con su foto o PDF.' },
+
     { titulo: 'Stock', descripcion: 'Stock actual con alertas de stock bajo.' },
     { titulo: 'Ventas de balanzas', descripcion: 'Importar el Excel de las balanzas para descontar lo vendido.' },
     { titulo: 'Conteos y ajustes', descripcion: 'Comparar conteo físico vs. stock esperado (robo hormiga).' },

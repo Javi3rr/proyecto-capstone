@@ -102,6 +102,22 @@ export const routes: Routes = [
             loadComponent: () => import('./pages/meson/meson-inicio.component').then((m) => m.MesonInicioComponent),
           },
           {
+            path: 'facturas',
+            title: 'Facturas · Patopan',
+            loadComponent: () => import('./pages/meson/facturas.component').then((m) => m.FacturasComponent),
+          },
+          {
+            path: 'facturas/nueva',
+            title: 'Nueva factura · Patopan',
+            loadComponent: () => import('./pages/meson/factura-nueva.component').then((m) => m.FacturaNuevaComponent),
+          },
+          {
+            path: 'facturas/:id',
+            title: 'Factura · Patopan',
+            loadComponent: () =>
+              import('./pages/meson/factura-detalle.component').then((m) => m.FacturaDetalleComponent),
+          },
+          {
             path: 'productos',
             title: 'Productos · Patopan',
             loadComponent: () => import('./pages/meson/productos.component').then((m) => m.ProductosComponent),

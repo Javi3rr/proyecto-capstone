@@ -283,12 +283,23 @@ model Factura {
   proveedorId     Int             @map("proveedor_id")
   proveedor       Proveedor       @relation(fields: [proveedorId], references: [id])
   numero          String          @db.VarChar(30)
+  /// Fecha de emisión que aparece en la factura
   fecha           DateTime        @db.Date
+  /// Suma de las líneas (cantidad × costo unitario neto)
+  neto            Decimal         @default(0) @db.Decimal(12, 2)
+  /// IVA de la factura (por defecto 19 % del neto; editable para productos exentos)
+  iva             Decimal         @default(0) @db.Decimal(12, 2)
+  /// neto + iva
   total           Decimal         @db.Decimal(12, 2)
+  observacion     String?         @db.VarChar(255)
   /// Ruta del archivo (foto/PDF) dentro del volumen de uploads
   archivoPath     String?         @map("archivo_path") @db.VarChar(255)
+  archivoNombre   String?         @map("archivo_nombre") @db.VarChar(255)
+  archivoTipo     String?         @map("archivo_tipo") @db.VarChar(60)
   estado          EstadoDocumento @default(VIGENTE)
   motivoAnulacion String?         @map("motivo_anulacion") @db.VarChar(255)
+  anuladaPorId    Int?            @map("anulada_por_id")
+  anuladaEn       DateTime?       @map("anulada_en")
   creadoPorId     Int?            @map("creado_por_id")
   creadoEn        DateTime        @default(now()) @map("creado_en")
 
@@ -306,7 +317,9 @@ model FacturaDetalle {
   productoId    Int      @map("producto_id")
   producto      Producto @relation(fields: [productoId], references: [id])
   cantidad      Decimal  @db.Decimal(12, 3)
+  /// Costo unitario neto (sin IVA)
   costoUnitario Decimal  @map("costo_unitario") @db.Decimal(10, 2)
+  subtotal      Decimal  @default(0) @db.Decimal(12, 2)
 
   @@map("facturas_detalle")
 }

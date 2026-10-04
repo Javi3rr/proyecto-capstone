@@ -28,6 +28,8 @@ const NOMBRE_ACCION: Record<string, string> = {
   REABRIR_DIA: 'Reabrió el día',
   REGISTRAR_PAGO: 'Registró pago',
   ELIMINAR_PAGO: 'Borró pago',
+  ANULAR: 'Anuló',
+  ADJUNTAR: 'Adjuntó archivo',
 };
 
 const NOMBRE_ENTIDAD: Record<string, string> = {
@@ -40,6 +42,7 @@ const NOMBRE_ENTIDAD: Record<string, string> = {
   pago: 'Pago',
   producto: 'Producto',
   proveedor: 'Proveedor',
+  factura: 'Factura',
   usuario: 'Usuario',
 };
 
@@ -407,7 +410,7 @@ export class AuditoriaComponent {
 
   protected tipoAccion(accion: string): string {
     if (['CREAR', 'REACTIVAR', 'LOGIN', 'REGISTRAR_PAGO'].includes(accion)) return 'alta';
-    if (['DESACTIVAR', 'ELIMINAR', 'LOGIN_FALLIDO', 'ELIMINAR_PAGO', 'REABRIR_DIA'].includes(accion)) return 'baja';
+    if (['DESACTIVAR', 'ANULAR', 'ELIMINAR', 'LOGIN_FALLIDO', 'ELIMINAR_PAGO', 'REABRIR_DIA'].includes(accion)) return 'baja';
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(accion)) return 'tecnica';
     return 'normal';
   }

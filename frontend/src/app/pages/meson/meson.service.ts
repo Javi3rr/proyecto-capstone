@@ -1,7 +1,16 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
-import { CategoriaProducto, Producto, ProductoForm, Proveedor, ProveedorForm } from '../../core/models';
+import {
+  CategoriaProducto,
+  Factura,
+  FacturaResumen,
+  NuevaFactura,
+  Producto,
+  ProductoForm,
+  Proveedor,
+  ProveedorForm,
+} from '../../core/models';
 
 /** Acceso a la API del módulo Mesón */
 @Injectable({ providedIn: 'root' })
@@ -45,5 +54,45 @@ export class MesonService {
 
   desactivarProveedor(id: number): Observable<Proveedor> {
     return this.http.delete<Proveedor>(`/api/proveedores/${id}`);
+  }
+
+  // ---------- Facturas de mercadería ----------
+  facturas(filtro: {
+    desde?: string;
+    hasta?: string;
+    proveedorId?: number;
+    numero?: string;
+    incluirAnuladas?: boolean;
+  }): Observable<FacturaResumen[]> {
+    let params = new HttpParams();
+    if (filtro.desde) params = params.set('desde', filtro.desde);
+    if (filtro.hasta) params = params.set('hasta', filtro.hasta);
+    if (filtro.proveedorId) params = params.set('proveedorId', filtro.proveedorId);
+    if (filtro.numero) params = params.set('numero', filtro.numero);
+    if (filtro.incluirAnuladas) params = params.set('incluirAnuladas', true);
+    return this.http.get<FacturaResumen[]>('/api/facturas', { params });
+  }
+
+  factura(id: number): Observable<Factura> {
+    return this.http.get<Factura>(`/api/facturas/${id}`);
+  }
+
+  crearFactura(datos: NuevaFactura): Observable<Factura> {
+    return this.http.post<Factura>('/api/facturas', datos);
+  }
+
+  anularFactura(id: number, motivo: string): Observable<Factura> {
+    return this.http.post<Factura>(`/api/facturas/${id}/anular`, { motivo });
+  }
+
+  adjuntarArchivo(id: number, archivo: File): Observable<Factura> {
+    const datos = new FormData();
+    datos.append('archivo', archivo, archivo.name);
+    return this.http.post<Factura>(`/api/facturas/${id}/archivo`, datos);
+  }
+
+  /** Descarga el adjunto con el token de sesión (un enlace directo no lo enviaría) */
+  archivoFactura(id: number): Observable<Blob> {
+    return this.http.get(`/api/facturas/${id}/archivo`, { responseType: 'blob' });
   }
 }

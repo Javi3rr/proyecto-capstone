@@ -9,6 +9,7 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { HealthController } from './health/health.controller';
 import { CuadreModule } from './cuadre/cuadre.module';
+import { FacturasModule } from './facturas/facturas.module';
 import { GuiasModule } from './guias/guias.module';
 import { PagosModule } from './pagos/pagos.module';
 import { PlanillaModule } from './planilla/planilla.module';
@@ -35,6 +36,7 @@ import { ReportesModule } from './reportes/reportes.module';
     ReportesModule,
     ProductosModule,
     ProveedoresModule,
+    FacturasModule,
   ],
   controllers: [HealthController],
   providers: [

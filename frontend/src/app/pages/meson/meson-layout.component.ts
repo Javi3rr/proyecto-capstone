@@ -41,6 +41,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 export class MesonLayoutComponent {
   protected readonly pestanas = [
     { ruta: '/meson', texto: 'Inicio', exacta: true },
+    { ruta: '/meson/facturas', texto: 'Facturas', exacta: false },
     { ruta: '/meson/productos', texto: 'Productos', exacta: false },
     { ruta: '/meson/proveedores', texto: 'Proveedores', exacta: false },
   ];

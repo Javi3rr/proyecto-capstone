@@ -45,7 +45,7 @@ export class AuditService {
    */
   async registrarCambio(
     usuarioId: number | undefined,
-    accion: 'CREAR' | 'ACTUALIZAR' | 'DESACTIVAR' | 'REACTIVAR' | 'ELIMINAR',
+    accion: 'CREAR' | 'ACTUALIZAR' | 'DESACTIVAR' | 'REACTIVAR' | 'ELIMINAR' | 'ANULAR' | 'ADJUNTAR',
     entidad: string,
     entidadId: number,
     antes: unknown,

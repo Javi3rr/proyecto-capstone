@@ -361,3 +361,47 @@ export interface ProveedorForm {
   telefono: string | null;
   email: string | null;
 }
+
+export interface FacturaResumen {
+  id: number;
+  proveedorId: number;
+  numero: string;
+  fecha: string;
+  neto: Decimal;
+  iva: Decimal;
+  total: Decimal;
+  observacion: string | null;
+  archivoPath: string | null;
+  archivoNombre: string | null;
+  archivoTipo: string | null;
+  estado: EstadoDocumento;
+  motivoAnulacion: string | null;
+  anuladaEn: string | null;
+  creadoEn: string;
+  proveedor: { id: number; rut: string; razonSocial: string };
+  _count: { detalles: number };
+}
+
+export interface FacturaDetalleLinea {
+  id: number;
+  productoId: number;
+  cantidad: Decimal;
+  costoUnitario: Decimal;
+  subtotal: Decimal;
+  producto: { id: number; plu: string; nombre: string; unidad: UnidadMedida };
+}
+
+export interface Factura extends FacturaResumen {
+  detalles: FacturaDetalleLinea[];
+  creadoPor: string | null;
+  anuladaPor: string | null;
+}
+
+export interface NuevaFactura {
+  proveedorId: number;
+  numero: string;
+  fecha: string;
+  iva?: number;
+  observacion: string | null;
+  lineas: { productoId: number; cantidad: number; costoUnitario: number }[];
+}
