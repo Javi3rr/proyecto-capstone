@@ -107,6 +107,29 @@ export interface OpcionesAuditoria {
   usuarios: { id: number; username: string; nombre: string; rol: Rol }[];
 }
 
+/** Usuario visto desde la gestión de usuarios (administrador) */
+export interface UsuarioAdmin {
+  id: number;
+  username: string;
+  nombre: string;
+  rol: Rol;
+  codigo: string | null;
+  activo: boolean;
+  ultimoAcceso: string | null;
+  creadoEn: string;
+}
+
+export interface UsuarioForm {
+  username?: string;
+  nombre: string;
+  rol: Rol;
+  codigo: string | null;
+  password?: string;
+}
+
+/** Reglas de contraseña (las mismas que valida la API) */
+export const REGLA_CLAVE = /^(?=.*[A-Za-zÁÉÍÓÚáéíóúÑñ])(?=.*\d).{8,72}$/;
+
 export const NOMBRE_ROL: Record<Rol, string> = {
   ADMIN: 'Administrador',
   MESON: 'Mesón',

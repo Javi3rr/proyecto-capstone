@@ -11,7 +11,7 @@ export interface RegistroAuditoria {
   ip?: string;
 }
 
-const CAMPOS_SENSIBLES = ['password', 'passwordHash', 'clave', 'token'];
+const CAMPOS_SENSIBLES = ['password', 'passwordHash', 'clave', 'token', 'accessToken', 'actual', 'nueva'];
 /** Registros técnicos que deja el interceptor por cada petición que modifica datos */
 const METODOS_HTTP = ['POST', 'PUT', 'PATCH', 'DELETE'];
 

@@ -164,11 +164,21 @@ export const routes: Routes = [
             loadComponent: () => import('./pages/admin/admin-inicio.component').then((m) => m.AdminInicioComponent),
           },
           {
+            path: 'usuarios',
+            title: 'Usuarios · Patopan',
+            loadComponent: () => import('./pages/admin/usuarios.component').then((m) => m.UsuariosComponent),
+          },
+          {
             path: 'auditoria',
             title: 'Auditoría · Patopan',
             loadComponent: () => import('./pages/admin/auditoria.component').then((m) => m.AuditoriaComponent),
           },
         ],
+      },
+      {
+        path: 'cuenta',
+        title: 'Mi contraseña · Patopan',
+        loadComponent: () => import('./pages/cuenta.component').then((m) => m.CuentaComponent),
       },
       {
         path: 'no-autorizado',

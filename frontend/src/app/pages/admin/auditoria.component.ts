@@ -30,6 +30,9 @@ const NOMBRE_ACCION: Record<string, string> = {
   ELIMINAR_PAGO: 'Borró pago',
   ANULAR: 'Anuló',
   ADJUNTAR: 'Adjuntó archivo',
+  CAMBIAR_CLAVE: 'Cambió su contraseña',
+  RESTABLECER_CLAVE: 'Restableció contraseña',
+  CERRAR_SESIONES: 'Cerró sesiones',
 };
 
 const NOMBRE_ENTIDAD: Record<string, string> = {

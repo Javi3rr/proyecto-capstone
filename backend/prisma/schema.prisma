@@ -32,6 +32,9 @@ model Usuario {
   /// Código personal (ej. código de mesonera que imprime la balanza en el voucher)
   codigo       String?  @unique @db.VarChar(20)
   activo       Boolean  @default(true)
+  /// Se incrementa al cambiar contraseña, rol o desactivar: invalida las sesiones abiertas
+  tokenVersion Int      @default(0) @map("token_version")
+  ultimoAcceso DateTime? @map("ultimo_acceso")
   creadoEn     DateTime @default(now()) @map("creado_en")
   actualizadoEn DateTime @updatedAt @map("actualizado_en")
 

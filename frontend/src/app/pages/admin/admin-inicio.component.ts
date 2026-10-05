@@ -23,6 +23,10 @@ import { PaginaAuditoria, RegistroAuditoria } from '../../core/models';
         <h2>Mesón</h2>
         <p class="pp-texto-suave">Productos, proveedores, facturas e inventario.</p>
       </a>
+      <a routerLink="/admin/usuarios" class="pp-card acceso">
+        <h2>Usuarios</h2>
+        <p class="pp-texto-suave">Cuentas del personal, roles, contraseñas y códigos de mesonera.</p>
+      </a>
       <a routerLink="/admin/auditoria" class="pp-card acceso">
         <h2>Auditoría</h2>
         <p class="pp-texto-suave">Quién hizo qué y cuándo, con filtros y detalle de cada cambio.</p>

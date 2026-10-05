@@ -38,6 +38,14 @@ export class AuthService {
     );
   }
 
+  /** Cambia la contraseña propia; la API devuelve una sesión nueva (las demás se cierran) */
+  cambiarClave(actual: string, nueva: string): Observable<Usuario> {
+    return this.http.post<LoginResponse>('/api/auth/cambiar-clave', { actual, nueva }).pipe(
+      tap((r) => this.guardarSesion({ token: r.accessToken, usuario: r.usuario })),
+      map((r) => r.usuario),
+    );
+  }
+
   logout(): void {
     try {
       localStorage.removeItem(CLAVE_SESION);

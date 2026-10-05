@@ -36,6 +36,7 @@ const MENU: ItemMenu[] = [
             <strong>{{ u.nombre }}</strong>
             <span class="pp-chip">{{ nombreRol[u.rol] }}</span>
           </div>
+          <a routerLink="/cuenta" class="cuenta" title="Cambiar mi contraseña">Mi contraseña</a>
           <button type="button" class="pp-btn pp-btn--secundario" (click)="auth.logout()">Salir</button>
         </div>
       }
@@ -86,6 +87,12 @@ const MENU: ItemMenu[] = [
       display: flex;
       align-items: center;
       gap: 0.75rem;
+    }
+    .cuenta {
+      font-size: 0.82rem;
+      font-weight: 600;
+      text-decoration: none;
+      white-space: nowrap;
     }
     .barra__datos {
       display: flex;

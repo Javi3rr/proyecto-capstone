@@ -20,6 +20,7 @@ import { ProductosModule } from './productos/productos.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
 import { RepartidoresModule } from './repartidores/repartidores.module';
 import { ReportesModule } from './reportes/reportes.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ReportesModule } from './reportes/reportes.module';
     ProveedoresModule,
     FacturasModule,
     InventarioModule,
+    UsuariosModule,
   ],
   controllers: [HealthController],
   providers: [
