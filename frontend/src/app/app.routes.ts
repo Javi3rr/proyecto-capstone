@@ -118,6 +118,31 @@ export const routes: Routes = [
               import('./pages/meson/factura-detalle.component').then((m) => m.FacturaDetalleComponent),
           },
           {
+            path: 'stock',
+            title: 'Stock · Patopan',
+            loadComponent: () => import('./pages/meson/stock.component').then((m) => m.StockComponent),
+          },
+          {
+            path: 'kardex/:id',
+            title: 'Kardex · Patopan',
+            loadComponent: () => import('./pages/meson/kardex.component').then((m) => m.KardexComponent),
+          },
+          {
+            path: 'conteos',
+            title: 'Conteos · Patopan',
+            loadComponent: () => import('./pages/meson/conteos.component').then((m) => m.ConteosComponent),
+          },
+          {
+            path: 'conteos/nuevo',
+            title: 'Nuevo conteo · Patopan',
+            loadComponent: () => import('./pages/meson/conteo-nuevo.component').then((m) => m.ConteoNuevoComponent),
+          },
+          {
+            path: 'conteos/:id',
+            title: 'Conteo · Patopan',
+            loadComponent: () => import('./pages/meson/conteo-detalle.component').then((m) => m.ConteoDetalleComponent),
+          },
+          {
             path: 'productos',
             title: 'Productos · Patopan',
             loadComponent: () => import('./pages/meson/productos.component').then((m) => m.ProductosComponent),

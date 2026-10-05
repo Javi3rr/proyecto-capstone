@@ -80,9 +80,9 @@ export class MesonInicioComponent {
     { titulo: 'Productos', descripcion: 'Catálogo de pan, cecinas y mercadería con el código PLU de la balanza.', ruta: '/meson/productos' },
     { titulo: 'Proveedores', descripcion: 'Empresas que entregan mercadería, con RUT validado.', ruta: '/meson/proveedores' },
 
-    { titulo: 'Stock', descripcion: 'Stock actual con alertas de stock bajo.' },
+    { titulo: 'Stock', descripcion: 'Stock actual con alertas de stock bajo o agotado.', ruta: '/meson/stock' },
     { titulo: 'Ventas de balanzas', descripcion: 'Importar el Excel de las balanzas para descontar lo vendido.' },
-    { titulo: 'Conteos y ajustes', descripcion: 'Comparar conteo físico vs. stock esperado (robo hormiga).' },
-    { titulo: 'Historial (kardex)', descripcion: 'Todas las entradas y salidas de cada producto.' },
+    { titulo: 'Conteos y ajustes', descripcion: 'Comparar conteo físico vs. stock esperado (robo hormiga).', ruta: '/meson/conteos' },
+    { titulo: 'Historial (kardex)', descripcion: 'Todas las entradas y salidas de cada producto (desde Stock).', ruta: '/meson/stock' },
   ];
 }

@@ -191,6 +191,8 @@ erDiagram
 | Cruce con balanzas | `productos.plu` único, igual al código de la balanza |
 | No importar dos veces el mismo archivo | `importaciones_balanza.hash_archivo` único |
 | Trazabilidad del stock (robo hormiga) | `movimientos_stock` es inmutable y guarda origen, usuario y código de mesonera |
+| Conteo físico vs. sistema | `conteos_detalle` guarda esperado, contado y diferencia; cada diferencia exige motivo y genera `AJUSTE_POSITIVO`/`AJUSTE_NEGATIVO` |
+| Un solo punto de cambio del stock | Función `registrarMovimiento`: actualiza `productos.stock_actual` y deja el movimiento con su saldo |
 | Kg y montos exactos | `DECIMAL(10,3)` para kg y `DECIMAL(12,2)` para montos (nunca `float`) |
 | Eliminación lógica | Campo `activo` en usuarios, clientes, repartidores, productos y proveedores |
 | Trazabilidad general | Tabla `auditoria` + campos `creado_por_id` / `creado_en` |

@@ -11,6 +11,7 @@ import { HealthController } from './health/health.controller';
 import { CuadreModule } from './cuadre/cuadre.module';
 import { FacturasModule } from './facturas/facturas.module';
 import { GuiasModule } from './guias/guias.module';
+import { InventarioModule } from './inventario/inventario.module';
 import { PagosModule } from './pagos/pagos.module';
 import { PlanillaModule } from './planilla/planilla.module';
 import { PreciosModule } from './precios/precios.module';
@@ -37,6 +38,7 @@ import { ReportesModule } from './reportes/reportes.module';
     ProductosModule,
     ProveedoresModule,
     FacturasModule,
+    InventarioModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -3,13 +3,18 @@ import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
   CategoriaProducto,
+  Conteo,
+  ConteoResumen,
   Factura,
   FacturaResumen,
+  Kardex,
   NuevaFactura,
+  NuevoConteo,
   Producto,
   ProductoForm,
   Proveedor,
   ProveedorForm,
+  Stock,
 } from '../../core/models';
 
 /** Acceso a la API del módulo Mesón */
@@ -94,5 +99,33 @@ export class MesonService {
   /** Descarga el adjunto con el token de sesión (un enlace directo no lo enviaría) */
   archivoFactura(id: number): Observable<Blob> {
     return this.http.get(`/api/facturas/${id}/archivo`, { responseType: 'blob' });
+  }
+
+  // ---------- Inventario ----------
+  stock(filtro: { categoria?: CategoriaProducto; texto?: string; soloAlertas?: boolean } = {}): Observable<Stock> {
+    let params = new HttpParams();
+    if (filtro.categoria) params = params.set('categoria', filtro.categoria);
+    if (filtro.texto) params = params.set('texto', filtro.texto);
+    if (filtro.soloAlertas) params = params.set('soloAlertas', true);
+    return this.http.get<Stock>('/api/inventario/stock', { params });
+  }
+
+  kardex(productoId: number, desde?: string, hasta?: string): Observable<Kardex> {
+    let params = new HttpParams();
+    if (desde) params = params.set('desde', desde);
+    if (hasta) params = params.set('hasta', hasta);
+    return this.http.get<Kardex>(`/api/inventario/kardex/${productoId}`, { params });
+  }
+
+  conteos(): Observable<ConteoResumen[]> {
+    return this.http.get<ConteoResumen[]>('/api/inventario/conteos');
+  }
+
+  conteo(id: number): Observable<Conteo> {
+    return this.http.get<Conteo>(`/api/inventario/conteos/${id}`);
+  }
+
+  crearConteo(datos: NuevoConteo): Observable<Conteo> {
+    return this.http.post<Conteo>('/api/inventario/conteos', datos);
   }
 }

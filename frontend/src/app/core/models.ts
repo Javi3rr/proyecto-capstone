@@ -405,3 +405,109 @@ export interface NuevaFactura {
   observacion: string | null;
   lineas: { productoId: number; cantidad: number; costoUnitario: number }[];
 }
+
+// ---------- Inventario ----------
+
+export type EstadoStock = 'SIN_STOCK' | 'BAJO' | 'OK';
+
+export interface FilaStock {
+  id: number;
+  plu: string;
+  nombre: string;
+  categoria: CategoriaProducto;
+  unidad: UnidadMedida;
+  precioVenta: number;
+  stockActual: number;
+  stockMinimo: number;
+  faltante: number;
+  estado: EstadoStock;
+  ultimoMovimiento: string | null;
+}
+
+export interface Stock {
+  resumen: { productos: number; sinStock: number; bajo: number };
+  filas: FilaStock[];
+}
+
+export type TipoMovimiento = 'ENTRADA_FACTURA' | 'ANULACION_FACTURA' | 'SALIDA_VENTA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
+
+export const NOMBRE_MOVIMIENTO: Record<TipoMovimiento, string> = {
+  ENTRADA_FACTURA: 'Entrada por factura',
+  ANULACION_FACTURA: 'Anulación de factura',
+  SALIDA_VENTA: 'Venta (balanza)',
+  AJUSTE_POSITIVO: 'Ajuste + (conteo)',
+  AJUSTE_NEGATIVO: 'Ajuste − (conteo)',
+};
+
+export interface MovimientoKardex {
+  id: string;
+  fecha: string;
+  tipo: TipoMovimiento;
+  cantidad: number;
+  saldo: number;
+  origenTipo: string | null;
+  origenId: number | null;
+  motivo: string | null;
+  codigoMesonera: string | null;
+  usuario: string | null;
+}
+
+export interface Kardex {
+  producto: { id: number; plu: string; nombre: string; unidad: UnidadMedida; stockActual: number };
+  desde: string | null;
+  hasta: string | null;
+  saldoInicial: number;
+  saldoFinal: number;
+  entradas: number;
+  salidas: number;
+  movimientos: MovimientoKardex[];
+}
+
+export type MotivoAjuste = 'MERMA' | 'VENCIMIENTO' | 'PERDIDA' | 'ERROR_REGISTRO' | 'OTRO';
+
+export const NOMBRE_MOTIVO_AJUSTE: Record<MotivoAjuste, string> = {
+  MERMA: 'Merma',
+  VENCIMIENTO: 'Vencimiento',
+  PERDIDA: 'Pérdida',
+  ERROR_REGISTRO: 'Error de registro',
+  OTRO: 'Otro',
+};
+
+export interface ConteoResumen {
+  id: number;
+  fecha: string;
+  observacion: string | null;
+  usuario: string | null;
+  productos: number;
+  conDiferencia: number;
+  valorDiferencia: number;
+}
+
+export interface Conteo {
+  id: number;
+  fecha: string;
+  observacion: string | null;
+  usuario: string | null;
+  detalles: {
+    id: number;
+    producto: { id: number; plu: string; nombre: string; categoria: CategoriaProducto; unidad: UnidadMedida; precioVenta: number };
+    stockEsperado: number;
+    stockContado: number;
+    diferencia: number;
+    valorDiferencia: number;
+    motivo: string | null;
+  }[];
+  resumen: {
+    productos: number;
+    conDiferencia: number;
+    faltantes: number;
+    sobrantes: number;
+    valorFaltante: number;
+    valorSobrante: number;
+  };
+}
+
+export interface NuevoConteo {
+  observacion: string | null;
+  lineas: { productoId: number; stockContado: number; motivo?: MotivoAjuste; detalle?: string | null }[];
+}

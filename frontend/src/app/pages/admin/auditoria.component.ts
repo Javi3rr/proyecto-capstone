@@ -43,6 +43,7 @@ const NOMBRE_ENTIDAD: Record<string, string> = {
   producto: 'Producto',
   proveedor: 'Proveedor',
   factura: 'Factura',
+  conteo: 'Conteo de inventario',
   usuario: 'Usuario',
 };
 
