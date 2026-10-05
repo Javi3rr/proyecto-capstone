@@ -9,13 +9,18 @@ import { RolesGuard } from './common/guards/roles.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { HealthController } from './health/health.controller';
 import { CuadreModule } from './cuadre/cuadre.module';
+import { FacturasModule } from './facturas/facturas.module';
 import { GuiasModule } from './guias/guias.module';
+import { InventarioModule } from './inventario/inventario.module';
 import { PagosModule } from './pagos/pagos.module';
 import { PlanillaModule } from './planilla/planilla.module';
 import { PreciosModule } from './precios/precios.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ProductosModule } from './productos/productos.module';
+import { ProveedoresModule } from './proveedores/proveedores.module';
 import { RepartidoresModule } from './repartidores/repartidores.module';
 import { ReportesModule } from './reportes/reportes.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
 
 @Module({
   imports: [
@@ -31,6 +36,11 @@ import { ReportesModule } from './reportes/reportes.module';
     CuadreModule,
     PagosModule,
     ReportesModule,
+    ProductosModule,
+    ProveedoresModule,
+    FacturasModule,
+    InventarioModule,
+    UsuariosModule,
   ],
   controllers: [HealthController],
   providers: [

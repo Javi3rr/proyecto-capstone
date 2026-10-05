@@ -44,3 +44,19 @@ export function textoLimpio({ value }: { value: unknown }): unknown {
   const t = value.trim();
   return t === '' ? null : t;
 }
+
+/**
+ * Instante (UTC) que corresponde a una fecha y hora de Chile continental.
+ * Considera el horario de verano/invierno (UTC-3 / UTC-4).
+ * Ej: instanteSantiago('2026-10-04') -> inicio del día 04-10 en Chile.
+ */
+export function instanteSantiago(fecha: string, hora = '00:00:00.000'): Date {
+  const comoUtc = new Date(`${fecha}T${hora}Z`);
+  const zona =
+    new Intl.DateTimeFormat('en-US', { timeZone: 'America/Santiago', timeZoneName: 'longOffset' })
+      .formatToParts(comoUtc)
+      .find((p) => p.type === 'timeZoneName')?.value ?? 'GMT-03:00';
+  const m = /GMT([+-])(\d{2}):(\d{2})/.exec(zona);
+  const minutos = m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : -180;
+  return new Date(comoUtc.getTime() - minutos * 60_000);
+}

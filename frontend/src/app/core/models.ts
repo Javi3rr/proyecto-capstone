@@ -72,13 +72,63 @@ export interface PrecioKg {
 
 export interface RegistroAuditoria {
   id: string;
+  usuarioId: number | null;
   accion: string;
   recurso: string;
   estadoHttp: number | null;
   ip: string | null;
+  /** Peticiones HTTP: { params, body }. Eventos: { antes, despues } */
+  detalle: unknown;
   creadoEn: string;
   usuario: { username: string; nombre: string } | null;
 }
+
+export interface PaginaAuditoria {
+  registros: RegistroAuditoria[];
+  total: number;
+  pagina: number;
+  porPagina: number;
+}
+
+export interface FiltroAuditoria {
+  usuarioId?: number;
+  accion?: string;
+  texto?: string;
+  desde?: string;
+  hasta?: string;
+  soloEventos?: boolean;
+  soloErrores?: boolean;
+  pagina?: number;
+  porPagina?: number;
+}
+
+export interface OpcionesAuditoria {
+  acciones: string[];
+  usuarios: { id: number; username: string; nombre: string; rol: Rol }[];
+}
+
+/** Usuario visto desde la gestión de usuarios (administrador) */
+export interface UsuarioAdmin {
+  id: number;
+  username: string;
+  nombre: string;
+  rol: Rol;
+  codigo: string | null;
+  activo: boolean;
+  ultimoAcceso: string | null;
+  creadoEn: string;
+}
+
+export interface UsuarioForm {
+  username?: string;
+  nombre: string;
+  rol: Rol;
+  codigo: string | null;
+  password?: string;
+}
+
+/** Reglas de contraseña (las mismas que valida la API) */
+export const REGLA_CLAVE = /^(?=.*[A-Za-zÁÉÍÓÚáéíóúÑñ])(?=.*\d).{8,72}$/;
 
 export const NOMBRE_ROL: Record<Rol, string> = {
   ADMIN: 'Administrador',
@@ -280,4 +330,207 @@ export interface PromedioMensual {
   filas: FilaPromedio[];
   totalesPorMes: number[];
   totalKg: number;
+}
+
+// ---------- Mesón ----------
+
+export type CategoriaProducto = 'PAN' | 'CECINAS' | 'MERCADERIA';
+export type UnidadMedida = 'KG' | 'UNIDAD';
+
+export const NOMBRE_CATEGORIA: Record<CategoriaProducto, string> = {
+  PAN: 'Pan',
+  CECINAS: 'Cecinas',
+  MERCADERIA: 'Mercadería',
+};
+
+export const NOMBRE_UNIDAD: Record<UnidadMedida, string> = { KG: 'Kg', UNIDAD: 'Unidad' };
+
+export interface Producto {
+  id: number;
+  plu: string;
+  nombre: string;
+  categoria: CategoriaProducto;
+  unidad: UnidadMedida;
+  precioVenta: Decimal;
+  stockMinimo: Decimal;
+  stockActual: Decimal;
+  activo: boolean;
+}
+
+export interface ProductoForm {
+  plu: string;
+  nombre: string;
+  categoria: CategoriaProducto;
+  unidad: UnidadMedida;
+  precioVenta: number;
+  stockMinimo: number;
+}
+
+export interface Proveedor {
+  id: number;
+  rut: string;
+  razonSocial: string;
+  contacto: string | null;
+  telefono: string | null;
+  email: string | null;
+  activo: boolean;
+  _count?: { facturas: number };
+}
+
+export interface ProveedorForm {
+  rut: string;
+  razonSocial: string;
+  contacto: string | null;
+  telefono: string | null;
+  email: string | null;
+}
+
+export interface FacturaResumen {
+  id: number;
+  proveedorId: number;
+  numero: string;
+  fecha: string;
+  neto: Decimal;
+  iva: Decimal;
+  total: Decimal;
+  observacion: string | null;
+  archivoPath: string | null;
+  archivoNombre: string | null;
+  archivoTipo: string | null;
+  estado: EstadoDocumento;
+  motivoAnulacion: string | null;
+  anuladaEn: string | null;
+  creadoEn: string;
+  proveedor: { id: number; rut: string; razonSocial: string };
+  _count: { detalles: number };
+}
+
+export interface FacturaDetalleLinea {
+  id: number;
+  productoId: number;
+  cantidad: Decimal;
+  costoUnitario: Decimal;
+  subtotal: Decimal;
+  producto: { id: number; plu: string; nombre: string; unidad: UnidadMedida };
+}
+
+export interface Factura extends FacturaResumen {
+  detalles: FacturaDetalleLinea[];
+  creadoPor: string | null;
+  anuladaPor: string | null;
+}
+
+export interface NuevaFactura {
+  proveedorId: number;
+  numero: string;
+  fecha: string;
+  iva?: number;
+  observacion: string | null;
+  lineas: { productoId: number; cantidad: number; costoUnitario: number }[];
+}
+
+// ---------- Inventario ----------
+
+export type EstadoStock = 'SIN_STOCK' | 'BAJO' | 'OK';
+
+export interface FilaStock {
+  id: number;
+  plu: string;
+  nombre: string;
+  categoria: CategoriaProducto;
+  unidad: UnidadMedida;
+  precioVenta: number;
+  stockActual: number;
+  stockMinimo: number;
+  faltante: number;
+  estado: EstadoStock;
+  ultimoMovimiento: string | null;
+}
+
+export interface Stock {
+  resumen: { productos: number; sinStock: number; bajo: number };
+  filas: FilaStock[];
+}
+
+export type TipoMovimiento = 'ENTRADA_FACTURA' | 'ANULACION_FACTURA' | 'SALIDA_VENTA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
+
+export const NOMBRE_MOVIMIENTO: Record<TipoMovimiento, string> = {
+  ENTRADA_FACTURA: 'Entrada por factura',
+  ANULACION_FACTURA: 'Anulación de factura',
+  SALIDA_VENTA: 'Venta (balanza)',
+  AJUSTE_POSITIVO: 'Ajuste + (conteo)',
+  AJUSTE_NEGATIVO: 'Ajuste − (conteo)',
+};
+
+export interface MovimientoKardex {
+  id: string;
+  fecha: string;
+  tipo: TipoMovimiento;
+  cantidad: number;
+  saldo: number;
+  origenTipo: string | null;
+  origenId: number | null;
+  motivo: string | null;
+  codigoMesonera: string | null;
+  usuario: string | null;
+}
+
+export interface Kardex {
+  producto: { id: number; plu: string; nombre: string; unidad: UnidadMedida; stockActual: number };
+  desde: string | null;
+  hasta: string | null;
+  saldoInicial: number;
+  saldoFinal: number;
+  entradas: number;
+  salidas: number;
+  movimientos: MovimientoKardex[];
+}
+
+export type MotivoAjuste = 'MERMA' | 'VENCIMIENTO' | 'PERDIDA' | 'ERROR_REGISTRO' | 'OTRO';
+
+export const NOMBRE_MOTIVO_AJUSTE: Record<MotivoAjuste, string> = {
+  MERMA: 'Merma',
+  VENCIMIENTO: 'Vencimiento',
+  PERDIDA: 'Pérdida',
+  ERROR_REGISTRO: 'Error de registro',
+  OTRO: 'Otro',
+};
+
+export interface ConteoResumen {
+  id: number;
+  fecha: string;
+  observacion: string | null;
+  usuario: string | null;
+  productos: number;
+  conDiferencia: number;
+  valorDiferencia: number;
+}
+
+export interface Conteo {
+  id: number;
+  fecha: string;
+  observacion: string | null;
+  usuario: string | null;
+  detalles: {
+    id: number;
+    producto: { id: number; plu: string; nombre: string; categoria: CategoriaProducto; unidad: UnidadMedida; precioVenta: number };
+    stockEsperado: number;
+    stockContado: number;
+    diferencia: number;
+    valorDiferencia: number;
+    motivo: string | null;
+  }[];
+  resumen: {
+    productos: number;
+    conDiferencia: number;
+    faltantes: number;
+    sobrantes: number;
+    valorFaltante: number;
+    valorSobrante: number;
+  };
+}
+
+export interface NuevoConteo {
+  observacion: string | null;
+  lineas: { productoId: number; stockContado: number; motivo?: MotivoAjuste; detalle?: string | null }[];
 }

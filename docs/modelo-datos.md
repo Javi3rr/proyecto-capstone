@@ -184,9 +184,15 @@ erDiagram
 | Un cambio de precio no altera guías emitidas | `precio_kg` se copia en `despachos` y `guias` al momento de emitir |
 | Guía y factura no se editan, solo se anulan | `estado` + `motivo_anulacion` (+ quién y cuándo) |
 | Factura sin duplicados | `UNIQUE(proveedor_id, numero)` |
+| Registrar una factura suma al stock | Cada línea genera un movimiento `ENTRADA_FACTURA` en la misma transacción |
+| Anular una factura revierte el stock sin borrar historial | Movimientos `ANULACION_FACTURA` negativos + `estado`, motivo, quién y cuándo |
+| Neto, IVA y total | `facturas.neto` = Σ subtotales; `iva` = 19 % del neto (editable); `total` = neto + IVA |
+| Respaldo de la factura | Foto/PDF en el volumen `uploads`; se valida el tipo real del archivo y el anterior se conserva |
 | Cruce con balanzas | `productos.plu` único, igual al código de la balanza |
 | No importar dos veces el mismo archivo | `importaciones_balanza.hash_archivo` único |
 | Trazabilidad del stock (robo hormiga) | `movimientos_stock` es inmutable y guarda origen, usuario y código de mesonera |
+| Conteo físico vs. sistema | `conteos_detalle` guarda esperado, contado y diferencia; cada diferencia exige motivo y genera `AJUSTE_POSITIVO`/`AJUSTE_NEGATIVO` |
+| Un solo punto de cambio del stock | Función `registrarMovimiento`: actualiza `productos.stock_actual` y deja el movimiento con su saldo |
 | Kg y montos exactos | `DECIMAL(10,3)` para kg y `DECIMAL(12,2)` para montos (nunca `float`) |
 | Eliminación lógica | Campo `activo` en usuarios, clientes, repartidores, productos y proveedores |
 | Trazabilidad general | Tabla `auditoria` + campos `creado_por_id` / `creado_en` |

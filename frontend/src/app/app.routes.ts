@@ -94,16 +94,91 @@ export const routes: Routes = [
       {
         path: 'meson',
         canActivate: [rolGuard('MESON')],
-        title: 'Mesón · Patopan',
-        loadComponent: () =>
-          import('./pages/meson/meson-inicio.component').then((m) => m.MesonInicioComponent),
+        loadComponent: () => import('./pages/meson/meson-layout.component').then((m) => m.MesonLayoutComponent),
+        children: [
+          {
+            path: '',
+            title: 'Mesón · Patopan',
+            loadComponent: () => import('./pages/meson/meson-inicio.component').then((m) => m.MesonInicioComponent),
+          },
+          {
+            path: 'facturas',
+            title: 'Facturas · Patopan',
+            loadComponent: () => import('./pages/meson/facturas.component').then((m) => m.FacturasComponent),
+          },
+          {
+            path: 'facturas/nueva',
+            title: 'Nueva factura · Patopan',
+            loadComponent: () => import('./pages/meson/factura-nueva.component').then((m) => m.FacturaNuevaComponent),
+          },
+          {
+            path: 'facturas/:id',
+            title: 'Factura · Patopan',
+            loadComponent: () =>
+              import('./pages/meson/factura-detalle.component').then((m) => m.FacturaDetalleComponent),
+          },
+          {
+            path: 'stock',
+            title: 'Stock · Patopan',
+            loadComponent: () => import('./pages/meson/stock.component').then((m) => m.StockComponent),
+          },
+          {
+            path: 'kardex/:id',
+            title: 'Kardex · Patopan',
+            loadComponent: () => import('./pages/meson/kardex.component').then((m) => m.KardexComponent),
+          },
+          {
+            path: 'conteos',
+            title: 'Conteos · Patopan',
+            loadComponent: () => import('./pages/meson/conteos.component').then((m) => m.ConteosComponent),
+          },
+          {
+            path: 'conteos/nuevo',
+            title: 'Nuevo conteo · Patopan',
+            loadComponent: () => import('./pages/meson/conteo-nuevo.component').then((m) => m.ConteoNuevoComponent),
+          },
+          {
+            path: 'conteos/:id',
+            title: 'Conteo · Patopan',
+            loadComponent: () => import('./pages/meson/conteo-detalle.component').then((m) => m.ConteoDetalleComponent),
+          },
+          {
+            path: 'productos',
+            title: 'Productos · Patopan',
+            loadComponent: () => import('./pages/meson/productos.component').then((m) => m.ProductosComponent),
+          },
+          {
+            path: 'proveedores',
+            title: 'Proveedores · Patopan',
+            loadComponent: () => import('./pages/meson/proveedores.component').then((m) => m.ProveedoresComponent),
+          },
+        ],
       },
       {
         path: 'admin',
         canActivate: [rolGuard('ADMIN')],
-        title: 'Administración · Patopan',
-        loadComponent: () =>
-          import('./pages/admin/admin-inicio.component').then((m) => m.AdminInicioComponent),
+        children: [
+          {
+            path: '',
+            title: 'Administración · Patopan',
+            loadComponent: () => import('./pages/admin/admin-inicio.component').then((m) => m.AdminInicioComponent),
+          },
+          {
+            path: 'usuarios',
+            title: 'Usuarios · Patopan',
+            loadComponent: () => import('./pages/admin/usuarios.component').then((m) => m.UsuariosComponent),
+          },
+          {
+            path: 'auditoria',
+            title: 'Auditoría · Patopan',
+            loadComponent: () => import('./pages/admin/auditoria.component').then((m) => m.AuditoriaComponent),
+          },
+        ],
+      },
+      {
+        path: 'cuenta',
+        title: 'Mi contraseña · Patopan',
+        loadComponent: () => import('./pages/cuenta.component').then((m) => m.CuentaComponent),
       },
       {
         path: 'no-autorizado',
