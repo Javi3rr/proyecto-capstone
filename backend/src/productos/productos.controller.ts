@@ -1,8 +1,9 @@
-import { Body, Controller, Delete, Get, Param, ParseBoolPipe, ParseEnumPipe, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseBoolPipe, ParseEnumPipe, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { CategoriaProducto } from '@prisma/client';
 import type { JwtPayload } from '../common/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { ImportarProductosDto } from './dto/importar-productos.dto';
 import { ActualizarProductoDto, CrearProductoDto } from './dto/producto.dto';
 import { ProductosService } from './productos.service';
 
@@ -19,6 +20,13 @@ export class ProductosController {
     @Query('texto') texto?: string,
   ) {
     return this.productos.listar({ incluirInactivos, categoria, texto: texto?.slice(0, 60) });
+  }
+
+  /** POST /api/productos/importar  -> carga/actualiza el catálogo desde el Excel de las balanzas (simular = solo revisar) */
+  @Post('importar')
+  @HttpCode(200)
+  importar(@Body() dto: ImportarProductosDto, @CurrentUser() user: JwtPayload) {
+    return this.productos.importar(dto, user.sub);
   }
 
   @Get(':id')

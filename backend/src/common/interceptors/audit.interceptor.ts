@@ -6,6 +6,8 @@ import type { AuthRequest } from '../auth.types';
 const METODOS_AUDITADOS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 // El login registra su propio evento (LOGIN / LOGIN_FALLIDO) en AuthService
 const RUTAS_EXCLUIDAS = ['/api/auth/login'];
+// Importaciones masivas: no se copia el cuerpo completo (el servicio registra su propio resumen)
+const RUTAS_SIN_CUERPO = ['/api/productos/importar', '/api/ventas/importar'];
 
 /**
  * Registra automáticamente en la tabla "auditoria" toda operación que modifica datos:
@@ -28,7 +30,9 @@ export class AuditInterceptor implements NestInterceptor {
       accion: req.method,
       recurso: ruta,
       ip: req.ip,
-      detalle: { params: req.params, body: req.body },
+      detalle: RUTAS_SIN_CUERPO.includes(ruta)
+        ? { params: req.params, body: '(omitido: importación masiva)' }
+        : { params: req.params, body: req.body },
     };
 
     return next.handle().pipe(

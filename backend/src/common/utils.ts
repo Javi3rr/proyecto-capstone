@@ -60,3 +60,13 @@ export function instanteSantiago(fecha: string, hora = '00:00:00.000'): Date {
   const minutos = m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : -180;
   return new Date(comoUtc.getTime() - minutos * 60_000);
 }
+
+/** Texto para comparar nombres: mayúsculas, sin tildes ni espacios repetidos. Ej: " Empanada  de pino " -> "EMPANADA DE PINO" */
+export function normalizarTexto(texto: string): string {
+  return texto
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toUpperCase();
+}

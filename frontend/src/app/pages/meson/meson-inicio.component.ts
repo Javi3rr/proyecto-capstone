@@ -81,7 +81,11 @@ export class MesonInicioComponent {
     { titulo: 'Proveedores', descripcion: 'Empresas que entregan mercadería, con RUT validado.', ruta: '/meson/proveedores' },
 
     { titulo: 'Stock', descripcion: 'Stock actual con alertas de stock bajo o agotado.', ruta: '/meson/stock' },
-    { titulo: 'Ventas de balanzas', descripcion: 'Importar el Excel de las balanzas para descontar lo vendido.' },
+    {
+      titulo: 'Ventas de balanzas',
+      descripcion: 'Importar las ventas de las balanzas o digitar el cierre del día; descuenta lo vendido y muestra el reporte por mesonera.',
+      ruta: '/meson/ventas',
+    },
     { titulo: 'Conteos y ajustes', descripcion: 'Comparar conteo físico vs. stock esperado (robo hormiga).', ruta: '/meson/conteos' },
     { titulo: 'Historial (kardex)', descripcion: 'Todas las entradas y salidas de cada producto (desde Stock).', ruta: '/meson/stock' },
   ];
