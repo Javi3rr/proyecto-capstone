@@ -1,9 +1,13 @@
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Las importaciones de Excel (productos y ventas) envían miles de filas en JSON
+  app.useBodyParser('json', { limit: '15mb' });
 
   // Todas las rutas quedan bajo /api (Nginx redirige /api -> este servicio)
   app.setGlobalPrefix('api');

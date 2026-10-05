@@ -452,12 +452,19 @@ export interface Stock {
   filas: FilaStock[];
 }
 
-export type TipoMovimiento = 'ENTRADA_FACTURA' | 'ANULACION_FACTURA' | 'SALIDA_VENTA' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
+export type TipoMovimiento =
+  | 'ENTRADA_FACTURA'
+  | 'ANULACION_FACTURA'
+  | 'SALIDA_VENTA'
+  | 'ANULACION_VENTA'
+  | 'AJUSTE_POSITIVO'
+  | 'AJUSTE_NEGATIVO';
 
 export const NOMBRE_MOVIMIENTO: Record<TipoMovimiento, string> = {
   ENTRADA_FACTURA: 'Entrada por factura',
   ANULACION_FACTURA: 'Anulación de factura',
   SALIDA_VENTA: 'Venta (balanza)',
+  ANULACION_VENTA: 'Anulación de ventas',
   AJUSTE_POSITIVO: 'Ajuste + (conteo)',
   AJUSTE_NEGATIVO: 'Ajuste − (conteo)',
 };
@@ -533,4 +540,122 @@ export interface Conteo {
 export interface NuevoConteo {
   observacion: string | null;
   lineas: { productoId: number; stockContado: number; motivo?: MotivoAjuste; detalle?: string | null }[];
+}
+
+// ---------- Balanzas: catálogo y ventas ----------
+
+export interface ResultadoImportacionProductos {
+  filasLeidas: number;
+  nuevos: { fila: number; plu: string; nombre: string; precio: number; unidad: UnidadMedida; categoria: CategoriaProducto }[];
+  actualizados: { plu: string; nombre: string; cambios: string[] }[];
+  sinCambios: number;
+  errores: { fila: number; mensaje: string }[];
+  guardado: boolean;
+}
+
+export interface FilaProductoArchivo {
+  fila: number;
+  plu: string | null;
+  nombre: string | null;
+  precioVenta: number | null;
+  unidad: string | null;
+  categoria: string | null;
+}
+
+export interface LineaVentaArchivo {
+  fila: number;
+  fecha: string | null;
+  plu: string | null;
+  descripcion: string | null;
+  cantidad: number | null;
+  monto: number | null;
+  mesonera: string | null;
+}
+
+export type TipoLineaVenta = 'PRODUCTO' | 'MISC' | 'SIN_PRODUCTO';
+
+export interface ResultadoImportacionVentas {
+  periodo: { desde: string; hasta: string; dias: number };
+  lineasAgrupadas: number;
+  totales: { ventas: number; productos: number; misc: number; sinProducto: number };
+  productosConStock: number;
+  sinProducto: { plu: string | null; descripcion: string; cantidad: number; monto: number }[];
+  mesoneras: { fecha: string; codigoMesonera: string; monto: number; montoMisc: number; lineasMisc: number }[];
+  errores: { fila: number; mensaje: string }[];
+  omitidas: number;
+  advertencias: string[];
+  guardado: boolean;
+  importacionId: number | null;
+}
+
+export interface CargaVentas {
+  id: number;
+  origen: 'ARCHIVO' | 'MANUAL';
+  nombreArchivo: string | null;
+  desde: string;
+  hasta: string;
+  lineas: number;
+  totalMonto: number;
+  estado: EstadoDocumento;
+  motivoAnulacion: string | null;
+  usuario: string | null;
+  creadoEn: string;
+}
+
+export interface CargaVentasDetalle extends Omit<CargaVentas, 'lineas'> {
+  observacion: string | null;
+  anuladaEn: string | null;
+  anuladaPor: string | null;
+  lineas: {
+    id: number;
+    fecha: string;
+    codigoMesonera: string | null;
+    tipo: TipoLineaVenta;
+    producto: { id: number; plu: string; nombre: string; unidad: UnidadMedida } | null;
+    plu: string | null;
+    descripcion: string;
+    cantidad: number;
+    monto: number;
+  }[];
+  resumenes: {
+    fecha: string;
+    codigoMesonera: string;
+    mesonera: string | null;
+    monto: number;
+    montoMisc: number;
+    lineasMisc: number;
+    tickets: number | null;
+  }[];
+}
+
+export interface Mesonera {
+  codigo: string;
+  nombre: string;
+  username: string;
+  activo: boolean;
+}
+
+export interface CierreManual {
+  fecha: string;
+  lineas: { productoId: number; cantidad: number; monto: number }[];
+  mesoneras: { codigo: string; monto: number; montoMisc: number; tickets: number | null }[];
+  montoMisc?: number;
+  observacion: string | null;
+}
+
+export interface ReporteVentas {
+  desde: string;
+  hasta: string;
+  totales: { ventas: number; productos: number; misc: number; sinProducto: number; porcentajeMisc: number };
+  mesoneras: {
+    codigo: string;
+    mesonera: string | null;
+    dias: number;
+    monto: number;
+    montoMisc: number;
+    lineasMisc: number;
+    tickets: number | null;
+    porcentajeMisc: number;
+  }[];
+  masVendidos: { producto: { id: number; plu: string; nombre: string; unidad: UnidadMedida } | null; cantidad: number; monto: number }[];
 }

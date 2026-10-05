@@ -189,7 +189,10 @@ erDiagram
 | Neto, IVA y total | `facturas.neto` = Σ subtotales; `iva` = 19 % del neto (editable); `total` = neto + IVA |
 | Respaldo de la factura | Foto/PDF en el volumen `uploads`; se valida el tipo real del archivo y el anterior se conserva |
 | Cruce con balanzas | `productos.plu` único, igual al código de la balanza |
-| No importar dos veces el mismo archivo | `importaciones_balanza.hash_archivo` único |
+| No importar dos veces las mismas ventas | `importaciones_balanza.hash_archivo` único (hash del contenido) + no se aceptan dos cargas vigentes que cubran el mismo día |
+| Patopan es el catálogo maestro de las balanzas | Importar productos desde el Excel de las balanzas (por PLU) y exportarlos de vuelta en Excel |
+| Ventas de la balanza descuentan stock | `ventas_balanza` (PRODUCTO / MISC / SIN_PRODUCTO); solo PRODUCTO genera `SALIDA_VENTA`; anular la carga genera `ANULACION_VENTA` |
+| Ventas por mesonera y "Misc. Por Conteo" | `resumen_mesoneras` por día y código de mesonera (CLERK del voucher = `usuarios.codigo`) |
 | Trazabilidad del stock (robo hormiga) | `movimientos_stock` es inmutable y guarda origen, usuario y código de mesonera |
 | Conteo físico vs. sistema | `conteos_detalle` guarda esperado, contado y diferencia; cada diferencia exige motivo y genera `AJUSTE_POSITIVO`/`AJUSTE_NEGATIVO` |
 | Un solo punto de cambio del stock | Función `registrarMovimiento`: actualiza `productos.stock_actual` y deja el movimiento con su saldo |

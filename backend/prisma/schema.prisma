@@ -261,6 +261,7 @@ model Producto {
   detallesFactura FacturaDetalle[]
   movimientos     MovimientoStock[]
   conteos         ConteoDetalle[]
+  ventas          VentaBalanza[]
 
   @@map("productos")
 }
@@ -331,6 +332,7 @@ enum TipoMovimiento {
   ENTRADA_FACTURA
   ANULACION_FACTURA
   SALIDA_VENTA
+  ANULACION_VENTA
   AJUSTE_POSITIVO
   AJUSTE_NEGATIVO
 }
@@ -359,18 +361,82 @@ model MovimientoStock {
 }
 
 /// Registro de cada archivo de ventas importado desde las balanzas
-model ImportacionBalanza {
-  id            Int      @id @default(autoincrement())
-  nombreArchivo String   @map("nombre_archivo") @db.VarChar(255)
-  /// Hash SHA-256 del archivo: evita importar dos veces el mismo
-  hashArchivo   String   @unique @map("hash_archivo") @db.VarChar(64)
-  periodoDesde  DateTime @map("periodo_desde")
-  periodoHasta  DateTime @map("periodo_hasta")
-  filas         Int
-  usuarioId     Int?     @map("usuario_id")
-  creadoEn      DateTime @default(now()) @map("creado_en")
+enum OrigenVentas {
+  /// Archivo exportado desde el software de las balanzas
+  ARCHIVO
+  /// Resumen del reporte impreso de la balanza, digitado a mano
+  MANUAL
+}
 
+enum TipoLineaVenta {
+  /// Producto identificado (descuenta stock)
+  PRODUCTO
+  /// "Misc. Por Conteo": precio digitado sin producto
+  MISC
+  /// No coincide con ningún producto del catálogo
+  SIN_PRODUCTO
+}
+
+/// Una carga de ventas de las balanzas (archivo o cierre manual de uno o más días)
+model ImportacionBalanza {
+  id              Int             @id @default(autoincrement())
+  origen          OrigenVentas    @default(ARCHIVO)
+  nombreArchivo   String?         @map("nombre_archivo") @db.VarChar(255)
+  /// Hash SHA-256 del contenido: evita importar dos veces las mismas ventas
+  hashArchivo     String?         @unique @map("hash_archivo") @db.VarChar(64)
+  periodoDesde    DateTime        @map("periodo_desde") @db.Date
+  periodoHasta    DateTime        @map("periodo_hasta") @db.Date
+  filas           Int
+  totalMonto      Decimal         @default(0) @map("total_monto") @db.Decimal(14, 2)
+  observacion     String?         @db.VarChar(255)
+  estado          EstadoDocumento @default(VIGENTE)
+  motivoAnulacion String?         @map("motivo_anulacion") @db.VarChar(255)
+  anuladaPorId    Int?            @map("anulada_por_id")
+  anuladaEn       DateTime?       @map("anulada_en")
+  usuarioId       Int?            @map("usuario_id")
+  creadoEn        DateTime        @default(now()) @map("creado_en")
+
+  lineas     VentaBalanza[]
+  resumenes  ResumenMesonera[]
+
+  @@index([periodoDesde, periodoHasta])
   @@map("importaciones_balanza")
+}
+
+/// Línea de venta de la balanza (agrupada por día, mesonera y producto)
+model VentaBalanza {
+  id             Int                @id @default(autoincrement())
+  importacionId  Int                @map("importacion_id")
+  importacion    ImportacionBalanza @relation(fields: [importacionId], references: [id], onDelete: Cascade)
+  fecha          DateTime           @db.Date
+  codigoMesonera String?            @map("codigo_mesonera") @db.VarChar(20)
+  productoId     Int?               @map("producto_id")
+  producto       Producto?          @relation(fields: [productoId], references: [id])
+  plu            String?            @db.VarChar(20)
+  descripcion    String             @db.VarChar(150)
+  cantidad       Decimal            @db.Decimal(12, 3)
+  monto          Decimal            @db.Decimal(12, 2)
+  tipo           TipoLineaVenta
+
+  @@index([fecha])
+  @@index([productoId, fecha])
+  @@map("ventas_balanza")
+}
+
+/// Ventas de cada mesonera en un día (total y lo vendido como "Misc.")
+model ResumenMesonera {
+  id             Int                @id @default(autoincrement())
+  importacionId  Int                @map("importacion_id")
+  importacion    ImportacionBalanza @relation(fields: [importacionId], references: [id], onDelete: Cascade)
+  fecha          DateTime           @db.Date
+  codigoMesonera String             @map("codigo_mesonera") @db.VarChar(20)
+  monto          Decimal            @db.Decimal(12, 2)
+  montoMisc      Decimal            @default(0) @map("monto_misc") @db.Decimal(12, 2)
+  lineasMisc     Int                @default(0) @map("lineas_misc")
+  tickets        Int?
+
+  @@index([fecha, codigoMesonera])
+  @@map("resumen_mesoneras")
 }
 
 model ConteoInventario {

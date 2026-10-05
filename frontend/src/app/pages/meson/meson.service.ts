@@ -2,18 +2,27 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
+  CargaVentas,
+  CargaVentasDetalle,
   CategoriaProducto,
+  CierreManual,
   Conteo,
   ConteoResumen,
   Factura,
   FacturaResumen,
+  FilaProductoArchivo,
   Kardex,
+  LineaVentaArchivo,
+  Mesonera,
   NuevaFactura,
   NuevoConteo,
   Producto,
   ProductoForm,
   Proveedor,
   ProveedorForm,
+  ReporteVentas,
+  ResultadoImportacionProductos,
+  ResultadoImportacionVentas,
   Stock,
 } from '../../core/models';
 
@@ -127,5 +136,52 @@ export class MesonService {
 
   crearConteo(datos: NuevoConteo): Observable<Conteo> {
     return this.http.post<Conteo>('/api/inventario/conteos', datos);
+  }
+
+  // ---------- Balanzas: catálogo y ventas ----------
+  importarProductos(datos: {
+    filas: FilaProductoArchivo[];
+    categoriaPorDefecto: CategoriaProducto;
+    unidadPorDefecto: 'KG' | 'UNIDAD';
+    simular: boolean;
+    nombreArchivo: string;
+  }): Observable<ResultadoImportacionProductos> {
+    return this.http.post<ResultadoImportacionProductos>('/api/productos/importar', datos);
+  }
+
+  cargasVentas(): Observable<CargaVentas[]> {
+    return this.http.get<CargaVentas[]>('/api/ventas');
+  }
+
+  cargaVentas(id: number): Observable<CargaVentasDetalle> {
+    return this.http.get<CargaVentasDetalle>(`/api/ventas/${id}`);
+  }
+
+  importarVentas(datos: {
+    nombreArchivo: string;
+    fechaPorDefecto?: string;
+    lineas: LineaVentaArchivo[];
+    simular: boolean;
+  }): Observable<ResultadoImportacionVentas> {
+    return this.http.post<ResultadoImportacionVentas>('/api/ventas/importar', datos);
+  }
+
+  cierreManual(datos: CierreManual): Observable<{ importacionId: number; totalProductos: number; totalMesoneras: number; diferencia: number }> {
+    return this.http.post<{ importacionId: number; totalProductos: number; totalMesoneras: number; diferencia: number }>(
+      '/api/ventas/cierre-manual',
+      datos,
+    );
+  }
+
+  anularCargaVentas(id: number, motivo: string): Observable<CargaVentasDetalle> {
+    return this.http.post<CargaVentasDetalle>(`/api/ventas/${id}/anular`, { motivo });
+  }
+
+  mesoneras(): Observable<Mesonera[]> {
+    return this.http.get<Mesonera[]>('/api/ventas/mesoneras');
+  }
+
+  reporteVentas(desde: string, hasta: string): Observable<ReporteVentas> {
+    return this.http.get<ReporteVentas>('/api/ventas/reporte', { params: { desde, hasta } });
   }
 }

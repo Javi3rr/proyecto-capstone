@@ -42,6 +42,7 @@ export class MesonLayoutComponent {
   protected readonly pestanas = [
     { ruta: '/meson', texto: 'Inicio', exacta: true },
     { ruta: '/meson/facturas', texto: 'Facturas', exacta: false },
+    { ruta: '/meson/ventas', texto: 'Ventas', exacta: false },
     { ruta: '/meson/stock', texto: 'Stock', exacta: false },
     { ruta: '/meson/conteos', texto: 'Conteos', exacta: false },
     { ruta: '/meson/productos', texto: 'Productos', exacta: false },

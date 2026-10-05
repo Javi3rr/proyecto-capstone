@@ -33,6 +33,9 @@ const NOMBRE_ACCION: Record<string, string> = {
   CAMBIAR_CLAVE: 'Cambió su contraseña',
   RESTABLECER_CLAVE: 'Restableció contraseña',
   CERRAR_SESIONES: 'Cerró sesiones',
+  IMPORTAR_PRODUCTOS: 'Importó productos',
+  IMPORTAR_VENTAS: 'Importó ventas',
+  CIERRE_VENTAS: 'Cierre manual de ventas',
 };
 
 const NOMBRE_ENTIDAD: Record<string, string> = {
@@ -47,6 +50,7 @@ const NOMBRE_ENTIDAD: Record<string, string> = {
   proveedor: 'Proveedor',
   factura: 'Factura',
   conteo: 'Conteo de inventario',
+  ventas: 'Carga de ventas',
   usuario: 'Usuario',
 };
 

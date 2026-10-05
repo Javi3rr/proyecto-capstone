@@ -143,6 +143,37 @@ export const routes: Routes = [
             loadComponent: () => import('./pages/meson/conteo-detalle.component').then((m) => m.ConteoDetalleComponent),
           },
           {
+            path: 'ventas',
+            title: 'Ventas · Patopan',
+            loadComponent: () => import('./pages/meson/ventas.component').then((m) => m.VentasComponent),
+          },
+          {
+            path: 'ventas/importar',
+            title: 'Importar ventas · Patopan',
+            loadComponent: () => import('./pages/meson/ventas-importar.component').then((m) => m.VentasImportarComponent),
+          },
+          {
+            path: 'ventas/cierre',
+            title: 'Cierre de ventas · Patopan',
+            loadComponent: () => import('./pages/meson/cierre-ventas.component').then((m) => m.CierreVentasComponent),
+          },
+          {
+            path: 'ventas/reporte',
+            title: 'Ventas por mesonera · Patopan',
+            loadComponent: () => import('./pages/meson/reporte-ventas.component').then((m) => m.ReporteVentasComponent),
+          },
+          {
+            path: 'ventas/:id',
+            title: 'Carga de ventas · Patopan',
+            loadComponent: () => import('./pages/meson/venta-detalle.component').then((m) => m.VentaDetalleComponent),
+          },
+          {
+            path: 'productos/importar',
+            title: 'Importar productos · Patopan',
+            loadComponent: () =>
+              import('./pages/meson/productos-importar.component').then((m) => m.ProductosImportarComponent),
+          },
+          {
             path: 'productos',
             title: 'Productos · Patopan',
             loadComponent: () => import('./pages/meson/productos.component').then((m) => m.ProductosComponent),

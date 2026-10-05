@@ -21,6 +21,7 @@ import { ProveedoresModule } from './proveedores/proveedores.module';
 import { RepartidoresModule } from './repartidores/repartidores.module';
 import { ReportesModule } from './reportes/reportes.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
+import { VentasModule } from './ventas/ventas.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { UsuariosModule } from './usuarios/usuarios.module';
     FacturasModule,
     InventarioModule,
     UsuariosModule,
+    VentasModule,
   ],
   controllers: [HealthController],
   providers: [

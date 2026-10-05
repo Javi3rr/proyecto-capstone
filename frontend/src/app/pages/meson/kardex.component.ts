@@ -68,6 +68,8 @@ import { MesonService } from './meson.service';
                   <td class="nowrap">
                     @if (m.origenTipo === 'FACTURA' && m.origenId) {
                       <a [routerLink]="['/meson/facturas', m.origenId]">Factura #{{ m.origenId }}</a>
+                    } @else if (m.origenTipo === 'IMPORTACION_BALANZA' && m.origenId) {
+                      <a [routerLink]="['/meson/ventas', m.origenId]">Ventas N° {{ m.origenId }}</a>
                     } @else if (m.origenTipo === 'CONTEO' && m.origenId) {
                       <a [routerLink]="['/meson/conteos', m.origenId]">Conteo N° {{ m.origenId }}</a>
                     } @else {

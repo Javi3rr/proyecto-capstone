@@ -1,7 +1,9 @@
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { descargarCsv } from '../../core/csv';
+import { descargarExcel } from '../../core/excel';
 import { mensajeError } from '../../core/errores';
 import {
   CategoriaProducto,
@@ -18,7 +20,7 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; producto: Producto };
 /** [MESÓN] Catálogo de productos (pan, cecinas y mercadería) con el PLU de la balanza */
 @Component({
   selector: 'app-productos',
-  imports: [ReactiveFormsModule, CurrencyPipe, DecimalPipe],
+  imports: [ReactiveFormsModule, CurrencyPipe, DecimalPipe, RouterLink],
   template: `
     <header class="encabezado">
       <div>
@@ -27,7 +29,13 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; producto: Producto };
           El código PLU debe ser el mismo que tiene el producto en la balanza, para cruzar ventas y stock.
         </p>
       </div>
-      <button type="button" class="pp-btn" (click)="abrirNuevo()">+ Nuevo producto</button>
+      <div class="acciones-cabecera">
+        <a routerLink="/meson/productos/importar" class="pp-btn pp-btn--secundario">Importar desde Excel</a>
+        <button type="button" class="pp-btn pp-btn--secundario" (click)="exportarBalanza()" title="Excel con PLU, nombre, precio y unidad para cargar en las balanzas">
+          Exportar para balanzas
+        </button>
+        <button type="button" class="pp-btn" (click)="abrirNuevo()">+ Nuevo producto</button>
+      </div>
     </header>
 
     @if (mensaje()) {
@@ -169,6 +177,14 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; producto: Producto };
     }
     .encabezado p {
       margin: 0;
+    }
+    .acciones-cabecera {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .acciones-cabecera a {
+      text-decoration: none;
     }
     .formulario {
       margin-bottom: 1.25rem;
@@ -439,6 +455,19 @@ export class ProductosComponent {
         this.num(p.stockMinimo),
         p.activo ? 'Sí' : 'No',
       ]),
+    ]);
+  }
+
+  /** Catálogo activo en Excel, para cargarlo en las balanzas con el software de CAS */
+  exportarBalanza(): void {
+    const activos = this.productos().filter((p) => p.activo);
+    if (activos.length === 0) {
+      this.error.set('No hay productos activos para exportar.');
+      return;
+    }
+    void descargarExcel('productos-balanzas-patopan.xlsx', 'PLU', [
+      ['PLU', 'Nombre', 'Precio', 'Unidad', 'Categoría'],
+      ...activos.map((p) => [p.plu, p.nombre, this.num(p.precioVenta), p.unidad === 'KG' ? 'kg' : 'unidad', this.nombreCategoria[p.categoria]]),
     ]);
   }
 

@@ -23,22 +23,40 @@
             "outputPath": "dist/patopan-web",
             "index": "src/index.html",
             "browser": "src/main.ts",
-            "polyfills": ["zone.js"],
+            "polyfills": [
+              "zone.js"
+            ],
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
-            "assets": [{ "glob": "**/*", "input": "public" }],
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "public"
+              }
+            ],
             "styles": [
               "node_modules/@fontsource/montserrat/400.css",
               "node_modules/@fontsource/montserrat/600.css",
               "node_modules/@fontsource/montserrat/800.css",
               "src/styles.scss"
+            ],
+            "allowedCommonJsDependencies": [
+              "xlsx"
             ]
           },
           "configurations": {
             "production": {
               "budgets": [
-                { "type": "initial", "maximumWarning": "700kB", "maximumError": "1.5MB" },
-                { "type": "anyComponentStyle", "maximumWarning": "6kB", "maximumError": "12kB" }
+                {
+                  "type": "initial",
+                  "maximumWarning": "700kB",
+                  "maximumError": "1.5MB"
+                },
+                {
+                  "type": "anyComponentStyle",
+                  "maximumWarning": "6kB",
+                  "maximumError": "12kB"
+                }
               ],
               "outputHashing": "all"
             },
@@ -56,8 +74,12 @@
             "proxyConfig": "proxy.conf.json"
           },
           "configurations": {
-            "production": { "buildTarget": "patopan-web:build:production" },
-            "development": { "buildTarget": "patopan-web:build:development" }
+            "production": {
+              "buildTarget": "patopan-web:build:production"
+            },
+            "development": {
+              "buildTarget": "patopan-web:build:development"
+            }
           },
           "defaultConfiguration": "development"
         }
