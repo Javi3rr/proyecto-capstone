@@ -21,6 +21,7 @@ import {
   Proveedor,
   ProveedorForm,
   ReporteVentas,
+  ResultadoImportacionBarras,
   ResultadoImportacionProductos,
   ResultadoImportacionVentas,
   Stock,
@@ -142,11 +143,20 @@ export class MesonService {
   importarProductos(datos: {
     filas: FilaProductoArchivo[];
     categoriaPorDefecto: CategoriaProducto;
+    categoriaAutomatica: boolean;
     unidadPorDefecto: 'KG' | 'UNIDAD';
     simular: boolean;
     nombreArchivo: string;
   }): Observable<ResultadoImportacionProductos> {
     return this.http.post<ResultadoImportacionProductos>('/api/productos/importar', datos);
+  }
+
+  importarBarras(datos: {
+    filas: { fila: number; plu: string | null; codigo: string | null }[];
+    simular: boolean;
+    nombreArchivo: string;
+  }): Observable<ResultadoImportacionBarras> {
+    return this.http.post<ResultadoImportacionBarras>('/api/productos/importar-barras', datos);
   }
 
   cargasVentas(): Observable<CargaVentas[]> {

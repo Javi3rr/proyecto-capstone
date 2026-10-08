@@ -168,6 +168,12 @@ export const routes: Routes = [
             loadComponent: () => import('./pages/meson/venta-detalle.component').then((m) => m.VentaDetalleComponent),
           },
           {
+            path: 'productos/importar-barras',
+            title: 'Importar códigos de barras · Patopan',
+            loadComponent: () =>
+              import('./pages/meson/productos-barras.component').then((m) => m.ProductosBarrasComponent),
+          },
+          {
             path: 'productos/importar',
             title: 'Importar productos · Patopan',
             loadComponent: () =>

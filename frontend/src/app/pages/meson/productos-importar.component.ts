@@ -21,14 +21,14 @@ const CAMPOS: CampoMapeo[] = [
   {
     clave: 'unidad',
     etiqueta: 'Unidad (kg / unidad)',
-    ayuda: 'Si no viene, se usa la unidad por defecto.',
-    sinonimos: ['unidad', 'tipo venta', 'tipo', 'um', 'unit', 'peso conteo', 'peso'],
+    ayuda: 'En el PLUData de CAS es "Tipo de PLU": 1 = por peso (kg), 2 = por unidad.',
+    sinonimos: ['tipo de plu', 'tipo venta', 'unidad', 'um', 'unit', 'peso conteo', 'tipo'],
   },
   {
     clave: 'categoria',
     etiqueta: 'Categoría',
-    ayuda: 'Pan, cecinas o mercadería. Si no viene, se usa la categoría por defecto.',
-    sinonimos: ['categoria', 'grupo', 'departamento', 'familia', 'seccion', 'dept', 'group'],
+    ayuda: 'Pan, cecinas o mercadería. El PLUData de CAS no la trae: se deduce automáticamente.',
+    sinonimos: ['categoria', 'familia', 'seccion'],
   },
 ];
 
@@ -41,8 +41,11 @@ const CAMPOS: CampoMapeo[] = [
     <header class="encabezado">
       <h1>Importar productos desde Excel</h1>
       <p class="pp-texto-suave">
-        Suba el Excel con los productos de las balanzas. Se busca cada producto por su <strong>PLU</strong>: si no existe se crea,
-        y si existe se actualizan su nombre, precio, unidad y categoría. El stock no se modifica.
+        Suba el <strong>PLUData</strong> que exporta el software de las balanzas (o cualquier Excel de productos).
+        Se busca cada producto por su <strong>PLU</strong>: si no existe se crea, y si existe se actualizan su nombre, precio,
+        unidad y categoría. El stock no se modifica.
+        Los códigos de barras (archivo <strong>ScannerMap</strong>) se cargan en
+        <a routerLink="/meson/productos/importar-barras">Importar códigos de barras</a>.
       </p>
     </header>
 
@@ -77,10 +80,11 @@ const CAMPOS: CampoMapeo[] = [
         <h2>2. ¿Qué columna es cada dato?</h2>
         <app-mapeo-columnas [campos]="campos" [titulos]="titulos()" [datos]="datos()" [(mapeo)]="mapeo" />
         <div class="opciones">
-          <label>Categoría por defecto
-            <select (change)="categoriaDefecto.set($any($event.target).value)">
+          <label>Si no viene la categoría
+            <select (change)="cambiarCategoria($any($event.target).value)">
+              <option value="AUTO" [selected]="categoriaAutomatica()">Automática (por nombre y tipo)</option>
               @for (c of categorias; track c) {
-                <option [value]="c" [selected]="c === categoriaDefecto()">{{ nombreCategoria[c] }}</option>
+                <option [value]="c" [selected]="!categoriaAutomatica() && c === categoriaDefecto()">Todas: {{ nombreCategoria[c] }}</option>
               }
             </select>
           </label>
@@ -109,10 +113,29 @@ const CAMPOS: CampoMapeo[] = [
           <span class="cambio"><strong>{{ r.actualizados.length }}</strong> con cambios</span>
           <span><strong>{{ r.sinCambios }}</strong> sin cambios</span>
           <span class="error"><strong>{{ r.errores.length }}</strong> filas con error (no se importan)</span>
+          @if (r.omitidos.length) {
+            <span><strong>{{ r.omitidos.length }}</strong> omitidas</span>
+          }
         </div>
+        @for (a of r.advertencias; track $index) {
+          <p class="advertencia">⚠ {{ a }}</p>
+        }
+        @if (r.omitidos.length) {
+          <details>
+            <summary>Filas omitidas ({{ r.omitidos.length }})</summary>
+            <ul class="lista">
+              @for (o of r.omitidos.slice(0, 200); track $index) {
+                <li>Fila {{ o.fila }} · PLU {{ o.plu }}: {{ o.motivo }}</li>
+              }
+            </ul>
+          </details>
+        }
 
         @if (r.guardado) {
-          <p class="pp-aviso-ok">Catálogo actualizado. <a routerLink="/meson/productos">Ver productos</a></p>
+          <p class="pp-aviso-ok">
+            Catálogo actualizado. <a routerLink="/meson/productos">Ver productos</a> ·
+            Siguiente paso: <a routerLink="/meson/productos/importar-barras">importar los códigos de barras (ScannerMap)</a>
+          </p>
         } @else if (r.nuevos.length + r.actualizados.length > 0) {
           <button type="button" class="pp-btn" [disabled]="trabajando()" (click)="enviar(false)">
             {{ trabajando() ? 'Importando…' : 'Confirmar e importar ' + (r.nuevos.length + r.actualizados.length) + ' producto(s)' }}
@@ -216,6 +239,13 @@ const CAMPOS: CampoMapeo[] = [
       gap: 1.25rem;
       margin-bottom: 0.75rem;
     }
+    .advertencia {
+      margin: 0.3rem 0;
+      padding: 0.4rem 0.6rem;
+      background: #fff8ec;
+      border-left: 4px solid var(--pp-alerta);
+      font-size: 0.85rem;
+    }
     .nuevo strong {
       color: var(--pp-exito);
     }
@@ -258,7 +288,8 @@ export class ProductosImportarComponent {
   protected readonly planilla = signal<Planilla | null>(null);
   protected readonly filaTitulos = signal(0);
   protected readonly mapeo = signal<Mapeo>({});
-  protected readonly categoriaDefecto = signal<CategoriaProducto>('PAN');
+  protected readonly categoriaDefecto = signal<CategoriaProducto>('MERCADERIA');
+  protected readonly categoriaAutomatica = signal(true);
   protected readonly unidadDefecto = signal<UnidadMedida>('UNIDAD');
   protected readonly resultado = signal<ResultadoImportacionProductos | null>(null);
   protected readonly trabajando = signal(false);
@@ -270,6 +301,12 @@ export class ProductosImportarComponent {
   protected readonly mapeoCompleto = computed(() =>
     CAMPOS.filter((c) => c.requerido).every((c) => this.mapeo()[c.clave] !== null && this.mapeo()[c.clave] !== undefined),
   );
+
+  cambiarCategoria(valor: string): void {
+    this.categoriaAutomatica.set(valor === 'AUTO');
+    if (valor !== 'AUTO') this.categoriaDefecto.set(valor as CategoriaProducto);
+    this.resultado.set(null);
+  }
 
   async elegir(evento: Event): Promise<void> {
     const archivo = (evento.target as HTMLInputElement).files?.[0];
@@ -330,6 +367,7 @@ export class ProductosImportarComponent {
       .importarProductos({
         filas,
         categoriaPorDefecto: this.categoriaDefecto(),
+        categoriaAutomatica: this.categoriaAutomatica(),
         unidadPorDefecto: this.unidadDefecto(),
         simular,
         nombreArchivo: this.archivo?.name ?? 'archivo',

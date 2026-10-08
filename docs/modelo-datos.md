@@ -191,6 +191,8 @@ erDiagram
 | Cruce con balanzas | `productos.plu` único, igual al código de la balanza |
 | No importar dos veces las mismas ventas | `importaciones_balanza.hash_archivo` único (hash del contenido) + no se aceptan dos cargas vigentes que cubran el mismo día |
 | Patopan es el catálogo maestro de las balanzas | Importar productos desde el Excel de las balanzas (por PLU) y exportarlos de vuelta en Excel |
+| Formato de las balanzas CAS (PLUData y ScannerMap) | `Tipo de PLU` 1 = por peso (KG), 2 = por unidad; `Código de mapeo` del ScannerMap = código de barras → `productos.codigo_barras` (puede repetirse) |
+| Tecla "PRODUCTO VARIO" (PLU 1) | No se importa como producto; sus ventas cuentan como "Misc." |
 | Ventas de la balanza descuentan stock | `ventas_balanza` (PRODUCTO / MISC / SIN_PRODUCTO); solo PRODUCTO genera `SALIDA_VENTA`; anular la carga genera `ANULACION_VENTA` |
 | Ventas por mesonera y "Misc. Por Conteo" | `resumen_mesoneras` por día y código de mesonera (CLERK del voucher = `usuarios.codigo`) |
 | Trazabilidad del stock (robo hormiga) | `movimientos_stock` es inmutable y guarda origen, usuario y código de mesonera |

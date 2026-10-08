@@ -70,3 +70,9 @@ export function normalizarTexto(texto: string): string {
     .trim()
     .toUpperCase();
 }
+
+/** Código de barras solo con dígitos y sin ceros a la izquierda (Excel suele borrarlos). Ej: "07802..." -> "7802..." */
+export function normalizarBarras(codigo: string | number | null | undefined): string | null {
+  const t = String(codigo ?? '').replace(/\D/g, '').replace(/^0+/, '');
+  return t.length >= 6 && t.length <= 20 ? t : null;
+}

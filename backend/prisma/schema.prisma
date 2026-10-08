@@ -247,6 +247,8 @@ model Producto {
   id           Int               @id @default(autoincrement())
   /// Código PLU: debe coincidir con el código del producto en la balanza
   plu          String            @unique @db.VarChar(20)
+  /// Código de barras (EAN) del ScannerMap de la balanza; puede repetirse entre productos
+  codigoBarras String?           @map("codigo_barras") @db.VarChar(20)
   nombre       String            @db.VarChar(120)
   categoria    CategoriaProducto
   unidad       UnidadMedida
@@ -263,6 +265,7 @@ model Producto {
   conteos         ConteoDetalle[]
   ventas          VentaBalanza[]
 
+  @@index([codigoBarras])
   @@map("productos")
 }
 

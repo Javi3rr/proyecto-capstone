@@ -1,6 +1,7 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { coincideBarras } from '../../core/barras';
 import { descargarCsv } from '../../core/csv';
 import { mensajeError } from '../../core/errores';
 import { CategoriaProducto, EstadoStock, FilaStock, NOMBRE_CATEGORIA, Stock } from '../../core/models';
@@ -42,7 +43,7 @@ const NOMBRE_ESTADO: Record<EstadoStock, string> = { SIN_STOCK: 'Sin stock', BAJ
 
     <section class="pp-card">
       <div class="filtros">
-        <input type="search" placeholder="Buscar por nombre o PLU…" (input)="busqueda.set($any($event.target).value)" aria-label="Buscar producto" />
+        <input type="search" placeholder="Buscar por nombre, PLU o escanear código…" (input)="busqueda.set($any($event.target).value)" aria-label="Buscar producto" />
         <div class="chips" role="group" aria-label="Filtrar por categoría">
           <button type="button" class="chip" [class.activo]="categoria() === null" (click)="categoria.set(null)">Todas</button>
           @for (c of categorias; track c) {
@@ -242,7 +243,7 @@ export class StockComponent {
         (f) =>
           (!this.soloAlertas() || f.estado !== 'OK') &&
           (this.categoria() === null || f.categoria === this.categoria()) &&
-          (!q || f.nombre.toLowerCase().includes(q) || f.plu.toLowerCase().startsWith(q)),
+          (!q || f.nombre.toLowerCase().includes(q) || f.plu.toLowerCase().startsWith(q) || coincideBarras(f.codigoBarras, q)),
       )
       // Primero lo más urgente
       .sort((a, b) => this.urgencia(a) - this.urgencia(b) || a.nombre.localeCompare(b.nombre));
