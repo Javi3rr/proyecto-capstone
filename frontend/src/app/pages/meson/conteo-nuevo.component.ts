@@ -1,6 +1,7 @@
 import { CurrencyPipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
+import { buscarPorCodigo, coincideBarras } from '../../core/barras';
 import { mensajeError } from '../../core/errores';
 import {
   CategoriaProducto,
@@ -38,7 +39,14 @@ interface Entrada {
 
     <section class="pp-card">
       <div class="filtros">
-        <input type="search" placeholder="Buscar por nombre o PLU…" (input)="busqueda.set($any($event.target).value)" aria-label="Buscar producto" />
+        <input
+          type="search"
+          placeholder="Buscar por nombre, PLU o escanear código…"
+          [value]="busqueda()"
+          (input)="busqueda.set($any($event.target).value)"
+          (keydown.enter)="irAlEscaneado($event)"
+          aria-label="Buscar producto"
+        />
         <div class="chips" role="group" aria-label="Filtrar por categoría">
           <button type="button" class="chip" [class.activo]="categoria() === null" (click)="categoria.set(null)">Todas</button>
           @for (c of categorias; track c) {
@@ -72,6 +80,7 @@ interface Entrada {
                     type="number"
                     min="0"
                     data-contado
+                    [attr.data-producto]="p.id"
                     [step]="p.unidad === 'KG' ? 0.001 : 1"
                     [value]="entrada(p.id).contado ?? ''"
                     (input)="fijar(p.id, { contado: numOrNull($any($event.target).value) })"
@@ -281,7 +290,7 @@ export class ConteoNuevoComponent {
     return this.productos().filter(
       (p) =>
         (this.categoria() === null || p.categoria === this.categoria()) &&
-        (!q || p.nombre.toLowerCase().includes(q) || p.plu.toLowerCase().startsWith(q)),
+        (!q || p.nombre.toLowerCase().includes(q) || p.plu.toLowerCase().startsWith(q) || coincideBarras(p.codigoBarras, q)),
     );
   });
 
@@ -327,6 +336,19 @@ export class ConteoNuevoComponent {
 
   fijar(id: number, cambios: Partial<Entrada>): void {
     this.entradas.update((e) => ({ ...e, [id]: { ...this.entrada(id), ...cambios } }));
+  }
+
+  /** Enter en el buscador (o lector de código de barras): salta a la cantidad contada de ese producto */
+  irAlEscaneado(evento: Event): void {
+    evento.preventDefault();
+    const encontrados = buscarPorCodigo<FilaStock>(this.productos(), this.busqueda());
+    if (encontrados.length !== 1) return;
+    const id = encontrados[0].id;
+    setTimeout(() => {
+      const input = document.querySelector<HTMLInputElement>(`input[data-contado][data-producto="${id}"]`);
+      input?.focus();
+      input?.select();
+    });
   }
 
   siguiente(evento: Event): void {

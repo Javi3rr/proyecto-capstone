@@ -348,6 +348,7 @@ export const NOMBRE_UNIDAD: Record<UnidadMedida, string> = { KG: 'Kg', UNIDAD: '
 export interface Producto {
   id: number;
   plu: string;
+  codigoBarras: string | null;
   nombre: string;
   categoria: CategoriaProducto;
   unidad: UnidadMedida;
@@ -364,6 +365,7 @@ export interface ProductoForm {
   unidad: UnidadMedida;
   precioVenta: number;
   stockMinimo: number;
+  codigoBarras?: string | null;
 }
 
 export interface Proveedor {
@@ -436,6 +438,7 @@ export type EstadoStock = 'SIN_STOCK' | 'BAJO' | 'OK';
 export interface FilaStock {
   id: number;
   plu: string;
+  codigoBarras: string | null;
   nombre: string;
   categoria: CategoriaProducto;
   unidad: UnidadMedida;
@@ -549,6 +552,18 @@ export interface ResultadoImportacionProductos {
   nuevos: { fila: number; plu: string; nombre: string; precio: number; unidad: UnidadMedida; categoria: CategoriaProducto }[];
   actualizados: { plu: string; nombre: string; cambios: string[] }[];
   sinCambios: number;
+  errores: { fila: number; mensaje: string }[];
+  omitidos: { fila: number; plu: string; motivo: string }[];
+  advertencias: string[];
+  guardado: boolean;
+}
+
+export interface ResultadoImportacionBarras {
+  asignados: { plu: string; nombre: string; antes: string | null; despues: string }[];
+  sinCambios: number;
+  sinCodigo: number;
+  noEncontrados: string[];
+  compartidos: string[];
   errores: { fila: number; mensaje: string }[];
   guardado: boolean;
 }

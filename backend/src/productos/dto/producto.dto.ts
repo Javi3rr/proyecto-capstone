@@ -33,6 +33,13 @@ export class CrearProductoDto {
   @Min(0)
   @Max(1_000_000)
   stockMinimo?: number;
+
+  /** Código de barras (opcional, solo dígitos) */
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{6,20}$/, { message: 'El código de barras debe tener entre 6 y 20 dígitos' })
+  codigoBarras?: string | null;
 }
 
 export class ActualizarProductoDto {
@@ -68,6 +75,14 @@ export class ActualizarProductoDto {
   @Min(0)
   @Max(1_000_000)
   stockMinimo?: number;
+
+
+  /** Código de barras (opcional, solo dígitos) */
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{6,20}$/, { message: 'El código de barras debe tener entre 6 y 20 dígitos' })
+  codigoBarras?: string | null;
 
   @IsOptional()
   @IsBoolean()

@@ -7,7 +7,7 @@ const METODOS_AUDITADOS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 // El login registra su propio evento (LOGIN / LOGIN_FALLIDO) en AuthService
 const RUTAS_EXCLUIDAS = ['/api/auth/login'];
 // Importaciones masivas: no se copia el cuerpo completo (el servicio registra su propio resumen)
-const RUTAS_SIN_CUERPO = ['/api/productos/importar', '/api/ventas/importar'];
+const RUTAS_SIN_CUERPO = ['/api/productos/importar', '/api/productos/importar-barras', '/api/ventas/importar'];
 
 /**
  * Registra automáticamente en la tabla "auditoria" toda operación que modifica datos:

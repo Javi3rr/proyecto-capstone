@@ -2,6 +2,7 @@ import { CurrencyPipe, DecimalPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { mensajeError } from '../../core/errores';
+import { buscarPorCodigo } from '../../core/barras';
 import { CategoriaProducto, NOMBRE_CATEGORIA, NuevaFactura, Producto, Proveedor } from '../../core/models';
 import { hoyISO } from '../despacho/despacho.service';
 import { MesonService } from './meson.service';
@@ -68,6 +69,29 @@ const MAX_MB = 10;
 
     <section class="pp-card">
       <h2>Detalle</h2>
+      <div class="escaner">
+        <label for="escaner">Escanear código de barras o escribir el PLU</label>
+        <input
+          id="escaner"
+          inputmode="numeric"
+          autocomplete="off"
+          placeholder="Pase el lector y presione Enter"
+          [value]="codigoEscaneado()"
+          (input)="codigoEscaneado.set($any($event.target).value)"
+          (keydown.enter)="escanear($event)"
+        />
+        @if (avisoEscaner()) {
+          <span class="aviso-escaner">{{ avisoEscaner() }}</span>
+        }
+        @if (opcionesEscaner().length > 1) {
+          <div class="opciones-escaner">
+            <span>Ese código lo comparten varios productos:</span>
+            @for (p of opcionesEscaner(); track p.id) {
+              <button type="button" class="pp-btn pp-btn--secundario pp-btn--chico" (click)="agregarProducto(p.id)">{{ p.plu }} · {{ p.nombre }}</button>
+            }
+          </div>
+        }
+      </div>
       <div class="tabla-scroll">
         <table class="pp-tabla lineas">
           <thead>
@@ -84,15 +108,14 @@ const MAX_MB = 10;
               <tr>
                 <td>
                   <select
-                    [value]="l.productoId ?? ''"
                     (change)="actualizar(i, 'productoId', $any($event.target).value)"
                     [attr.aria-label]="'Producto línea ' + (i + 1)"
                   >
-                    <option value="">Seleccione…</option>
+                    <option value="" [selected]="l.productoId === null">Seleccione…</option>
                     @for (g of grupos(); track g.categoria) {
                       <optgroup [label]="g.nombre">
                         @for (p of g.productos; track p.id) {
-                          <option [value]="p.id">{{ p.plu }} · {{ p.nombre }}</option>
+                          <option [value]="p.id" [selected]="l.productoId === p.id">{{ p.plu }} · {{ p.nombre }}</option>
                         }
                       </optgroup>
                     }
@@ -102,6 +125,7 @@ const MAX_MB = 10;
                   <input
                     type="number"
                     min="0"
+                    data-cantidad
                     [step]="unidadDe(l) === 'KG' ? 0.001 : 1"
                     [value]="l.cantidad ?? ''"
                     (input)="actualizar(i, 'cantidad', $any($event.target).value)"
@@ -207,6 +231,34 @@ const MAX_MB = 10;
       padding: 0.3rem 0.4rem;
       vertical-align: middle;
     }
+    .escaner {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem 0.75rem;
+      margin-bottom: 0.75rem;
+      font-size: 0.85rem;
+    }
+    .escaner label {
+      font-weight: 600;
+    }
+    .escaner input {
+      min-width: 240px;
+      padding: 0.4rem 0.6rem;
+      border: 2px solid var(--pp-celeste-medio);
+      border-radius: 8px;
+      font: 0.95rem var(--pp-fuente);
+    }
+    .aviso-escaner {
+      color: var(--pp-error);
+    }
+    .opciones-escaner {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      align-items: center;
+      width: 100%;
+    }
     .col-producto {
       min-width: 260px;
     }
@@ -294,6 +346,9 @@ export class FacturaNuevaComponent {
   protected readonly maxMb = MAX_MB;
   protected readonly proveedores = signal<Proveedor[]>([]);
   protected readonly productos = signal<Producto[]>([]);
+  protected readonly codigoEscaneado = signal('');
+  protected readonly avisoEscaner = signal<string | null>(null);
+  protected readonly opcionesEscaner = signal<Producto[]>([]);
   protected readonly cargando = signal(true);
   protected readonly guardando = signal(false);
   protected readonly error = signal<string | null>(null);
@@ -348,6 +403,43 @@ export class FacturaNuevaComponent {
   enterEnCosto(i: number, evento: Event): void {
     evento.preventDefault();
     if (i === this.lineas().length - 1) this.agregarLinea();
+  }
+
+  /** Lector de código de barras (o PLU escrito): agrega el producto como nueva línea */
+  escanear(evento: Event): void {
+    evento.preventDefault();
+    this.avisoEscaner.set(null);
+    this.opcionesEscaner.set([]);
+    const texto = this.codigoEscaneado().trim();
+    if (!texto) return;
+    const encontrados = buscarPorCodigo<Producto>(this.productos(), texto);
+    if (encontrados.length === 0) {
+      this.avisoEscaner.set(`No hay ningún producto con el código "${texto}".`);
+      return;
+    }
+    if (encontrados.length > 1) {
+      this.opcionesEscaner.set(encontrados);
+      return;
+    }
+    this.agregarProducto(encontrados[0].id);
+  }
+
+  agregarProducto(productoId: number): void {
+    this.opcionesEscaner.set([]);
+    this.codigoEscaneado.set('');
+    const ls = this.lineas();
+    const ultima = ls[ls.length - 1];
+    // Reutiliza la última línea si está vacía
+    if (ultima && ultima.productoId === null && ultima.cantidad === null && ultima.costoUnitario === null) {
+      this.lineas.update((xs) => xs.map((l, j) => (j === xs.length - 1 ? { ...l, productoId } : l)));
+    } else {
+      this.lineas.update((xs) => [...xs, { ...this.lineaVacia(), productoId }]);
+    }
+    // Lleva el cursor a la cantidad de esa línea
+    setTimeout(() => {
+      const cantidades = document.querySelectorAll<HTMLInputElement>('input[data-cantidad]');
+      cantidades[cantidades.length - 1]?.focus();
+    });
   }
 
   agregarLinea(): void {

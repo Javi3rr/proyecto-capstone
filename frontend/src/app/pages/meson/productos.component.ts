@@ -3,6 +3,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { descargarCsv } from '../../core/csv';
+import { coincideBarras } from '../../core/barras';
 import { descargarExcel } from '../../core/excel';
 import { mensajeError } from '../../core/errores';
 import {
@@ -31,7 +32,7 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; producto: Producto };
       </div>
       <div class="acciones-cabecera">
         <a routerLink="/meson/productos/importar" class="pp-btn pp-btn--secundario">Importar desde Excel</a>
-        <button type="button" class="pp-btn pp-btn--secundario" (click)="exportarBalanza()" title="Excel con PLU, nombre, precio y unidad para cargar en las balanzas">
+        <button type="button" class="pp-btn pp-btn--secundario" (click)="exportarBalanza()" title="Descarga PLUData y ScannerMap con el formato del software de las balanzas CAS">
           Exportar para balanzas
         </button>
         <button type="button" class="pp-btn" (click)="abrirNuevo()">+ Nuevo producto</button>
@@ -81,6 +82,10 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; producto: Producto };
             <div class="pp-campo">
               <label for="minimo">Stock mínimo ({{ form.controls.unidad.value === 'KG' ? 'kg' : 'unidades' }})</label>
               <input id="minimo" type="number" min="0" step="0.5" formControlName="stockMinimo" />
+            </div>
+            <div class="pp-campo">
+              <label for="barras">Código de barras</label>
+              <input id="barras" formControlName="codigoBarras" inputmode="numeric" maxlength="20" placeholder="Escanee o escriba" />
             </div>
           </div>
           @if (ed.tipo === 'editar') {
@@ -134,6 +139,9 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; producto: Producto };
                 <td><code>{{ p.plu }}</code></td>
                 <td>
                   <strong>{{ p.nombre }}</strong>
+                  @if (p.codigoBarras) {
+                    <small class="barras">▮ {{ p.codigoBarras }}</small>
+                  }
                   @if (!p.activo) {
                     <span class="pp-chip gris">desactivado</span>
                   }
@@ -280,6 +288,12 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; producto: Producto };
     tr.inactivo td {
       color: var(--pp-texto-suave);
     }
+    .barras {
+      display: block;
+      font-size: 0.72rem;
+      color: var(--pp-texto-suave);
+      letter-spacing: 0.03em;
+    }
     .gris {
       background: #eee;
       color: var(--pp-texto-suave);
@@ -312,7 +326,7 @@ export class ProductosComponent {
       (p) =>
         (this.mostrarInactivos() || p.activo) &&
         (this.categoria() === null || p.categoria === this.categoria()) &&
-        (!q || p.nombre.toLowerCase().includes(q) || p.plu.toLowerCase().startsWith(q)),
+        (!q || p.nombre.toLowerCase().includes(q) || p.plu.toLowerCase().startsWith(q) || coincideBarras(p.codigoBarras, q)),
     );
   });
 
@@ -329,6 +343,7 @@ export class ProductosComponent {
     unidad: this.fb.nonNullable.control<UnidadMedida>('UNIDAD'),
     precioVenta: this.fb.nonNullable.control<number | null>(null, [Validators.required, Validators.min(0)]),
     stockMinimo: this.fb.nonNullable.control<number | null>(0, [Validators.min(0)]),
+    codigoBarras: this.fb.nonNullable.control<string>('', [Validators.pattern(/^\d{6,20}$/)]),
   });
 
   constructor() {
@@ -366,6 +381,7 @@ export class ProductosComponent {
       unidad: 'UNIDAD',
       precioVenta: null,
       stockMinimo: 0,
+      codigoBarras: '',
     });
     this.edicion.set({ tipo: 'nuevo' });
   }
@@ -379,6 +395,7 @@ export class ProductosComponent {
       unidad: p.unidad,
       precioVenta: this.num(p.precioVenta),
       stockMinimo: this.num(p.stockMinimo),
+      codigoBarras: p.codigoBarras ?? '',
     });
     this.edicion.set({ tipo: 'editar', producto: p });
   }
@@ -399,6 +416,7 @@ export class ProductosComponent {
       unidad: v.unidad,
       precioVenta: Math.round(Number(v.precioVenta)),
       stockMinimo: Number(v.stockMinimo ?? 0),
+      codigoBarras: v.codigoBarras.trim() || null,
     };
 
     this.guardando.set(true);
@@ -459,16 +477,46 @@ export class ProductosComponent {
   }
 
   /** Catálogo activo en Excel, para cargarlo en las balanzas con el software de CAS */
-  exportarBalanza(): void {
-    const activos = this.productos().filter((p) => p.activo);
+  /**
+   * Exporta el catálogo en el formato del software de las balanzas CAS:
+   * "PLUData" (productos) y "ScannerMap" (códigos de barras), con las mismas columnas que entrega la balanza.
+   */
+  async exportarBalanza(): Promise<void> {
+    const activos = this.productos()
+      .filter((p) => p.activo)
+      .sort((a, b) => (Number(a.plu) || 0) - (Number(b.plu) || 0) || a.plu.localeCompare(b.plu));
     if (activos.length === 0) {
       this.error.set('No hay productos activos para exportar.');
       return;
     }
-    void descargarExcel('productos-balanzas-patopan.xlsx', 'PLU', [
-      ['PLU', 'Nombre', 'Precio', 'Unidad', 'Categoría'],
-      ...activos.map((p) => [p.plu, p.nombre, this.num(p.precioVenta), p.unidad === 'KG' ? 'kg' : 'unidad', this.nombreCategoria[p.categoria]]),
+    const noNumericos = activos.filter((p) => !/^\d+$/.test(p.plu));
+    if (noNumericos.length) {
+      this.error.set(`La balanza solo acepta PLU numéricos. Revise: ${noNumericos.map((p) => p.plu).join(', ')}.`);
+      return;
+    }
+    const d = new Date();
+    const dos = (n: number) => String(n).padStart(2, '0');
+    const ahora = `${dos(d.getDate())}-${dos(d.getMonth() + 1)}-${d.getFullYear()} ${dos(d.getHours())}:${dos(d.getMinutes())}:${dos(d.getSeconds())}`;
+    const columnas = [
+      'Departamento no', 'PLU No', 'Tipo de PLU', 'Código del objeto', 'Nombre1', 'Category No', 'Grupo no', 'Etiqueta no',
+      'Etiqueta Aux No', 'Origen no', 'Ingrediente directo', 'Peso fijo', 'Ingrediente directo2', 'Precio unitario', 'Imagen',
+      'Unidad de peso', 'Sin impuesto', 'Fecha de empaque', 'Código de barras no', 'Departamento de enlace PLU1',
+      'Usar tipo de precio fijo', 'Precio especial', 'Fecha de actualización',
+    ];
+    await descargarExcel('PLUData_Patopan.xlsx', 'PLU Data', [
+      columnas,
+      ...activos.map((p) => [
+        1, Number(p.plu), p.unidad === 'KG' ? 1 : 2, Number(p.plu), p.nombre.toUpperCase().slice(0, 40), 0, 0, 0,
+        0, 0, null, 0, null, this.num(p.precioVenta), null,
+        1, 0, 0, 0, 0,
+        0, 0, ahora,
+      ]),
     ]);
+    await descargarExcel('ScannerMap_Patopan.xlsx', 'ScannerMap', [
+      ['Código', 'Código de mapeo', 'Departamento no', 'PLU No', 'Observación'],
+      ...activos.map((p) => [Number(p.plu), p.codigoBarras ? Number(p.codigoBarras) : Number(p.plu), 1, Number(p.plu), p.nombre]),
+    ]);
+    this.mensaje.set('Se descargaron PLUData_Patopan.xlsx y ScannerMap_Patopan.xlsx, con el mismo formato del software de las balanzas.');
   }
 
   private limpiarAvisos(): void {

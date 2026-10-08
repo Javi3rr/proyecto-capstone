@@ -11,6 +11,10 @@ const iso = (d: Date) => d.toISOString().slice(0, 10);
 const r3 = (n: number) => Math.round(n * 1000) / 1000;
 const DESCRIPCION_MISC = 'Misc. Por Conteo';
 
+/** Ventas de precio libre: "Misc. Por Conteo" en el voucher o la tecla "PRODUCTO VARIO" (PLU 1) */
+const esMisc = (descripcionNormalizada: string) =>
+  descripcionNormalizada.startsWith('MISC') || descripcionNormalizada === 'PRODUCTO VARIO';
+
 /** Filas que las exportaciones suelen traer al final y no son ventas */
 const FILAS_DE_TOTAL = /^(SUB ?TOTAL|TOTAL|TOTALES|RESUMEN)\b/;
 
@@ -382,7 +386,10 @@ export class VentasService {
   /** Valida cada fila, la clasifica (producto / misc / sin producto) y agrupa por día, mesonera y producto */
   private interpretar(filas: LineaArchivoDto[], fechaPorDefecto: string | undefined, productos: ProductoCatalogo[]) {
     const porPlu = new Map(productos.map((p) => [p.plu.toUpperCase(), p]));
-    const porNombre = new Map(productos.map((p) => [normalizarTexto(p.nombre), p]));
+    // Por nombre solo se cruza si el nombre es único (hay productos distintos con el mismo nombre, ej. "JUGO SPRIM")
+    const nombres = new Map<string, ProductoCatalogo[]>();
+    for (const p of productos) nombres.set(normalizarTexto(p.nombre), [...(nombres.get(normalizarTexto(p.nombre)) ?? []), p]);
+    const porNombre = new Map([...nombres.entries()].filter(([, ps]) => ps.length === 1).map(([n, ps]) => [n, ps[0]]));
     const errores: { fila: number; mensaje: string }[] = [];
     let omitidas = 0;
     const grupos = new Map<string, LineaAgrupada>();
@@ -413,11 +420,13 @@ export class VentasService {
 
       let tipo: TipoLineaVenta;
       let producto: ProductoCatalogo | undefined;
-      if (desc.startsWith('MISC')) {
+      if (esMisc(desc)) {
         tipo = 'MISC';
       } else {
         producto = (plu ? porPlu.get(plu) : undefined) ?? (desc ? porNombre.get(desc) : undefined);
-        tipo = producto ? 'PRODUCTO' : 'SIN_PRODUCTO';
+        // La tecla "PRODUCTO VARIO" (precio libre) también es venta sin producto
+        if (producto && esMisc(normalizarTexto(producto.nombre))) producto = undefined;
+        tipo = producto ? 'PRODUCTO' : desc || plu !== '1' ? 'SIN_PRODUCTO' : 'MISC';
       }
 
       const cantidad = f.cantidad === null || f.cantidad === undefined ? 1 : Number(f.cantidad);

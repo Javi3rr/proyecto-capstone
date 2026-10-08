@@ -3,7 +3,7 @@ import { CategoriaProducto } from '@prisma/client';
 import type { JwtPayload } from '../common/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
-import { ImportarProductosDto } from './dto/importar-productos.dto';
+import { ImportarBarrasDto, ImportarProductosDto } from './dto/importar-productos.dto';
 import { ActualizarProductoDto, CrearProductoDto } from './dto/producto.dto';
 import { ProductosService } from './productos.service';
 
@@ -27,6 +27,13 @@ export class ProductosController {
   @HttpCode(200)
   importar(@Body() dto: ImportarProductosDto, @CurrentUser() user: JwtPayload) {
     return this.productos.importar(dto, user.sub);
+  }
+
+  /** POST /api/productos/importar-barras  -> códigos de barras desde el ScannerMap de la balanza */
+  @Post('importar-barras')
+  @HttpCode(200)
+  importarBarras(@Body() dto: ImportarBarrasDto, @CurrentUser() user: JwtPayload) {
+    return this.productos.importarBarras(dto, user.sub);
   }
 
   @Get(':id')

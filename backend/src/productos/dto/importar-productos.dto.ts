@@ -46,6 +46,39 @@ export class FilaProductoDto {
   categoria?: string | null;
 }
 
+/** Fila del ScannerMap: PLU y su código de barras */
+export class FilaBarrasDto {
+  @IsInt()
+  fila!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  plu?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  codigo?: string | null;
+}
+
+export class ImportarBarrasDto {
+  @IsArray()
+  @ArrayMinSize(1, { message: 'El archivo no tiene filas' })
+  @ArrayMaxSize(10000)
+  @ValidateNested({ each: true })
+  @Type(() => FilaBarrasDto)
+  filas!: FilaBarrasDto[];
+
+  @IsBoolean()
+  simular!: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  nombreArchivo?: string;
+}
+
 export class ImportarProductosDto {
   @IsArray()
   @ArrayMinSize(1, { message: 'El archivo no tiene filas' })
@@ -56,6 +89,11 @@ export class ImportarProductosDto {
 
   @IsEnum(CategoriaProducto)
   categoriaPorDefecto!: CategoriaProducto;
+
+  /** Si el archivo no trae categoría: deducirla por nombre y tipo (pan / cecinas al peso / mercadería) */
+  @IsOptional()
+  @IsBoolean()
+  categoriaAutomatica?: boolean;
 
   @IsEnum(UnidadMedida)
   unidadPorDefecto!: UnidadMedida;

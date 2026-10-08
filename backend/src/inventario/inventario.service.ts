@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CategoriaProducto, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
-import { instanteSantiago } from '../common/utils';
+import { instanteSantiago, normalizarBarras } from '../common/utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { CrearConteoDto, MotivoAjuste } from './dto/conteo.dto';
 import { registrarMovimiento } from './movimientos';
@@ -35,7 +35,13 @@ export class InventarioService {
         where: {
           activo: true,
           categoria: filtro.categoria,
-          OR: texto ? [{ nombre: { contains: texto, mode: 'insensitive' } }, { plu: { startsWith: texto } }] : undefined,
+          OR: texto
+            ? [
+                { nombre: { contains: texto, mode: 'insensitive' } },
+                { plu: { startsWith: texto.toUpperCase() } },
+                ...(normalizarBarras(texto) ? [{ codigoBarras: normalizarBarras(texto) }] : []),
+              ]
+            : undefined,
         },
         orderBy: [{ categoria: 'asc' }, { nombre: 'asc' }],
       }),
@@ -50,6 +56,7 @@ export class InventarioService {
       return {
         id: p.id,
         plu: p.plu,
+        codigoBarras: p.codigoBarras,
         nombre: p.nombre,
         categoria: p.categoria,
         unidad: p.unidad,
