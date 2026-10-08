@@ -52,17 +52,26 @@ flowchart LR
 
 ```
 backend/src/
-├── main.ts                  → arranque, prefijo /api, validación global
+├── main.ts                  → arranque, prefijo /api, validación global, límite de cuerpo 15 MB
 ├── app.module.ts            → guards globales (JWT + roles) e interceptor de auditoría
 ├── prisma/                  → acceso a la base de datos (PrismaService)
-├── auth/                    → login, /auth/me, emisión de JWT
+├── auth/                    → login, /auth/me, cambio de contraseña propio, emisión de JWT
+├── usuarios/                → gestión de usuarios y roles (solo ADMIN)
 ├── audit/                   → registro y consulta de auditoría (solo ADMIN)
 ├── common/
 │   ├── decorators/          → @Public(), @Roles(), @CurrentUser()
-│   ├── guards/              → JwtAuthGuard, RolesGuard
+│   ├── guards/              → JwtAuthGuard (valida usuario activo y versión del token), RolesGuard
 │   └── interceptors/        → AuditInterceptor (registra POST/PUT/PATCH/DELETE)
 ├── health/                  → /api/health (healthcheck de Docker)
-└── clientes/                → base del módulo Despacho
+│
+├── clientes/  repartidores/  precios/        → DESPACHO: maestros
+├── planilla/  guias/  cuadre/  pagos/        → DESPACHO: operación diaria, cobro y saldos
+├── reportes/                                 → DESPACHO: historial y promedios mensuales
+│
+├── productos/  proveedores/                  → MESÓN: catálogo (importación/exportación CAS)
+├── facturas/                                 → MESÓN: facturas de mercadería con archivo adjunto
+├── inventario/                               → MESÓN: stock, kardex, conteos y registrarMovimiento()
+└── ventas/                                   → MESÓN: ventas de balanza, cierre manual, reporte por mesonera
 ```
 
 **Convención para nuevos módulos:** un directorio por dominio (`facturas/`, `productos/`, `guias/`…) con `*.module.ts`, `*.controller.ts`, `*.service.ts` y `dto/`. La seguridad se declara con `@Roles('DESPACHO')` o `@Roles('MESON')`.
@@ -91,10 +100,11 @@ frontend/src/app/
 - Al iniciar sesión, cada rol llega a su inicio: `despachador → /despacho`, `meson → /meson`, `admin → /admin`.
 - Identidad visual: celeste `#1B99E5` y blanco, con tipografía **Montserrat** y un logo propio de espiga de trigo + "PATOPAN" (`docs/img/logo-patopan.svg`). Las fuentes se incluyen en el proyecto, así el sistema funciona aunque no haya internet.
 
-## 6. Decisiones de integración pendientes
+## 6. Decisiones de integración
 
 | Tema | Historia relacionada | Estado |
 |---|---|---|
-| Formato y forma de extraer el Excel de las balanzas | [MESÓN] Investigar modelo y formato de exportación de las balanzas | Por investigar |
-| Tipo de impresora para guías (térmica 80 mm o carta) | [DESPACHO] Generar e imprimir una guía por caja | Por definir con el cliente |
-| Precio del kg de pan vigente | [DESPACHO] Configurar el precio del kg | Por definir con el cliente |
+| Formato del Excel de las balanzas | [MESÓN] Investigar modelo y formato de exportación de las balanzas | **Resuelto.** Balanzas CAS CN1-30P; archivos `PLUData` (catálogo) y `ScannerMap` (códigos de barras). Patopan es el catálogo maestro. Ver `informe-balanzas.md`. |
+| Exportación de ventas desde las balanzas | [MESÓN] Importar ventas de la balanza | **Parcial.** Importación por archivo con mapeo de columnas y cierre manual desde el reporte X, mientras no haya un PC conectado a las balanzas. |
+| Tipo de impresora para guías | [DESPACHO] Generar e imprimir una guía por caja | **Definido:** hoja carta, una guía por cliente y vuelta. Falta la prueba en la impresora real. |
+| Precio del kg de pan | [DESPACHO] Configurar el precio del kg | **Resuelto:** $2.000/kg general, con precios especiales por cliente. |
