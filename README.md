@@ -14,11 +14,11 @@
 
 | Integrante | Rol en el proyecto |
 |---|---|
-| Javier Molina | _Por completar_ |
-| Mauricio Ortega | _Por completar_ |
-| Pablo Gonzalez | _Por completar_ |
+| Javier Molina | QA y documentación |
+| Mauricio Ortega | Desarrollo backend |
+| Pablo Gonzalez | Desarrollo frontend |
 
-**Docente guía:** _Por completar_ · **Sección:** _Por completar_
+**Docente guía:** Antonio Gallardo · **Sección:** CAPSTONE_008V
 
 ---
 
@@ -90,10 +90,10 @@ El detalle se encuentra en [Arquitectura](Fase%202/Evidencias%20Grupales/1.%20Do
 ```
 .
 ├── README.md
-├── Fase 1/
+├── Fase 1/                              → Definición del proyecto (finalizada)
 │   ├── Evidencias Grupales/
 │   └── Evidencias Individuales/
-├── Fase 2/                              → Desarrollo del sistema
+├── Fase 2/                              → Avance: desarrollo del sistema (en curso)
 │   ├── Evidencias Grupales/
 │   │   ├── 1. Documentación técnica/    → arquitectura, modelo de datos, informes de investigación
 │   │   ├── 2. Gestión del proyecto/     → bitácora, capturas de Trello y métricas
@@ -127,7 +127,9 @@ docker compose up -d --build
 
 El sistema queda disponible en `http://localhost:8080`. Las instrucciones completas están en el README del repositorio de código.
 
-## 8. Estado de avance
+## 8. Estado de avance (Fase 2)
+
+La Fase 1 (definición del proyecto) está finalizada. El avance de la Fase 2 a la fecha es el siguiente:
 
 | Módulo | Estado |
 |---|---|
