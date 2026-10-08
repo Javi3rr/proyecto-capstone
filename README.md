@@ -90,7 +90,7 @@ El detalle se encuentra en [Arquitectura](Fase%202/Evidencias%20Grupales/1.%20Do
 ```
 .
 ├── README.md
-├── Fase 1/                              → Definición del proyecto (finalizada)
+├── Fase 1/                              → Definición del proyecto (finalizada, se conserva para revisión)
 │   ├── Evidencias Grupales/
 │   └── Evidencias Individuales/
 ├── Fase 2/                              → Avance: desarrollo del sistema (en curso)

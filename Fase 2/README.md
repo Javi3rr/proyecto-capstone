@@ -1,4 +1,4 @@
-# Fase 2 · Desarrollo del sistema
+# Fase 2 · Avance del desarrollo del sistema
 
 En esta fase se construye el sistema web Patopan de forma incremental, con historias de usuario priorizadas en Trello y validadas con la panadería.
 
