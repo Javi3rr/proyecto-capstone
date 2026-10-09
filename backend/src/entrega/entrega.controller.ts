@@ -3,7 +3,7 @@ import type { JwtPayload } from '../common/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ParseFechaPipe } from '../common/parse-fecha.pipe';
-import { NoPagoDto } from './dto/no-pago.dto';
+import { NoPagoDto, PagaDto } from './dto/no-pago.dto';
 import { EntregaService } from './entrega.service';
 
 @Roles('DESPACHO')
@@ -15,6 +15,17 @@ export class EntregaController {
   @Get(':fecha')
   obtener(@Param('fecha', ParseFechaPipe) fecha: string) {
     return this.entrega.obtener(fecha);
+  }
+
+  /** PUT /api/entrega/2026-10-09/paga/2  { "monto": 20000 }: paga del repartidor ese día */
+  @Put(':fecha/paga/:repartidorId')
+  registrarPaga(
+    @Param('fecha', ParseFechaPipe) fecha: string,
+    @Param('repartidorId', ParseIntPipe) repartidorId: number,
+    @Body() dto: PagaDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.entrega.registrarPaga(fecha, repartidorId, dto.monto, user.sub);
   }
 
   /** PUT /api/entrega/2026-10-09/no-pago/5  { "nota": "No estaba" } */

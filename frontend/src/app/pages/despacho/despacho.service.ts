@@ -133,6 +133,11 @@ export class DespachoService {
     return this.http.get<Entrega>(`/api/entrega/${fecha}`);
   }
 
+  /** Paga del repartidor ese día (se descuenta de lo que entrega) */
+  registrarPaga(fecha: string, repartidorId: number, monto: number): Observable<unknown> {
+    return this.http.put(`/api/entrega/${fecha}/paga/${repartidorId}`, { monto });
+  }
+
   /** El cliente recibió pan pero no pagó: su deuda pasa al próximo día con pan */
   marcarNoPago(fecha: string, clienteId: number, nota: string | null): Observable<unknown> {
     return this.http.put(`/api/entrega/${fecha}/no-pago/${clienteId}`, { nota });

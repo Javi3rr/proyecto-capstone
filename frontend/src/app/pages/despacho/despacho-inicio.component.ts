@@ -94,7 +94,7 @@ export class DespachoInicioComponent {
     const grupos: GrupoClientes[] = [
       {
         titulo: 'Pago día siguiente',
-        descripcion: 'Llevan hoy y pagan mañana junto a los clientes del Repartidor 2.',
+        descripcion: 'Llevan hoy y pagan el próximo día en que vuelvan a recibir pan.',
         clientes: todos.filter((c) => c.modalidad === 'PAGO_DIA_SIGUIENTE'),
       },
     ];

@@ -18,7 +18,7 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
       <div>
         <h1>Entrega del día</h1>
         <p class="pp-texto-suave">
-          Lo que cada repartidor debe entregar hoy. Si un cliente no pagó, márquelo: su monto pasa al próximo día en que reciba pan.
+          Lo que cada repartidor debe entregar hoy, descontada su paga. Si un cliente no pagó, márquelo: su monto pasa al próximo día en que reciba pan.
         </p>
       </div>
       <div class="fecha no-imprimir">
@@ -55,8 +55,29 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
               <h2>{{ r.repartidor.nombre }}{{ r.repartidor.patente ? ' · ' + r.repartidor.patente : '' }}</h2>
               <div class="entregar">
                 Debe entregar
-                <strong>{{ r.totales.montoEntregar | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong>
+                <strong>{{ r.totales.netoEntregar | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong>
               </div>
+            </div>
+            <div class="cuentas">
+              <span>Cobrado: <strong>{{ r.totales.montoEntregar | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong></span>
+              <label class="paga" [class.paga--sugerida]="!r.totales.pagaGuardada">
+                − Paga del día:
+                <span class="solo-imprimir">{{ r.totales.paga | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</span>
+                <input
+                  class="no-imprimir"
+                  type="number"
+                  inputmode="numeric"
+                  min="0"
+                  step="500"
+                  [value]="r.totales.paga"
+                  [attr.aria-label]="'Paga de ' + r.repartidor.nombre"
+                  (keydown.enter)="$any($event.target).blur()"
+                  (blur)="guardarPaga(r.repartidor.id, r.totales.paga, r.totales.pagaGuardada, $any($event.target))"
+                />
+                @if (!r.totales.pagaGuardada) {
+                  <small class="no-imprimir">habitual, sin confirmar</small>
+                }
+              </label>
             </div>
             <div class="kilos">
               <span>Kg del día: <strong>{{ r.totales.kgDelDia | number: '1.0-3' }}</strong></span>
@@ -137,7 +158,9 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
 
       <section class="pp-card resumen">
         <span>Despachado hoy: <strong>{{ e.totalesDia.kg | number: '1.0-3' }} kg</strong> ({{ e.totalesDia.monto | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }})</span>
-        <span>Total a recibir hoy: <strong>{{ e.totalesDia.montoEntregar | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong></span>
+        <span>Cobrado: <strong>{{ e.totalesDia.montoEntregar | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong></span>
+        <span>Pagas: <strong>{{ e.totalesDia.pagas | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong></span>
+        <span>Total a recibir: <strong>{{ e.totalesDia.netoEntregar | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong></span>
         <span>{{ e.cerrada ? 'Día cerrado' : 'Día abierto (puede cambiar)' }}</span>
       </section>
     } @else if (cargando()) {
@@ -272,6 +295,35 @@ import { DespachoService, hoyISO, sumarDias } from './despacho.service';
       text-align: right;
       font-size: 1.5rem;
       color: var(--pp-celeste-oscuro);
+    }
+    .cuentas {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 0.4rem 1rem;
+      margin-top: 0.25rem;
+    }
+    .paga {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .paga input {
+      width: 6.5rem;
+      padding: 0.25rem 0.4rem;
+      border: 1px solid var(--pp-borde);
+      border-radius: 6px;
+      font: 600 0.9rem var(--pp-fuente);
+      text-align: right;
+    }
+    .paga--sugerida input {
+      background: #fff8ec;
+      border-color: #f3c27a;
+    }
+    .paga small {
+      color: var(--pp-alerta);
+      font-size: 0.72rem;
     }
     .kilos {
       display: flex;
@@ -472,7 +524,34 @@ export class EntregaComponent {
     this.error.set(mensajeError(e, texto));
   }
 
+  /** Guarda la paga del repartidor para este día (también confirma la habitual sin cambiarla) */
+  guardarPaga(repartidorId: number, actual: number, guardada: boolean, input: HTMLInputElement): void {
+    const texto = input.value.trim();
+    const monto = texto === '' ? 0 : Number(texto);
+    if (!Number.isInteger(monto) || monto < 0) {
+      this.error.set('La paga debe ser un monto entero en pesos, sin puntos.');
+      input.value = String(actual);
+      return;
+    }
+    if (monto === actual && guardada) return;
+    this.guardando.set(true);
+    this.api.registrarPaga(this.fecha(), repartidorId, monto).subscribe({
+      next: () => this.terminado(),
+      error: (e) => this.fallo(e, 'No se pudo guardar la paga.'),
+    });
+  }
+
   imprimir(): void {
+    const sinConfirmar = (this.entrega()?.repartidores ?? []).filter((r) => !r.totales.pagaGuardada && r.totales.paga > 0);
+    if (
+      sinConfirmar.length > 0 &&
+      !confirm(
+        `La paga de ${sinConfirmar.map((r) => r.repartidor.nombre).join(' y ')} es la habitual y no se ha confirmado para hoy.\n` +
+          '¿Imprimir de todas formas?',
+      )
+    ) {
+      return;
+    }
     window.print();
   }
 }

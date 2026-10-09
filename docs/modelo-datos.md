@@ -20,6 +20,7 @@ erDiagram
     GUIAS ||--o{ PAGOS : "se paga con"
     REPARTIDORES ||--o{ PAGOS : "rinde"
     CLIENTES ||--o{ NO_PAGOS : "excepcion de cobro"
+    REPARTIDORES ||--o{ PAGAS_REPARTIDOR : "recibe"
 
     PROVEEDORES ||--o{ FACTURAS : "emite"
     FACTURAS ||--|{ FACTURAS_DETALLE : "contiene"
@@ -51,6 +52,7 @@ erDiagram
         string nombre
         string rut UK
         string patente
+        decimal paga_diaria "habitual por dia"
         bool activo
     }
     CLIENTES {
@@ -104,6 +106,12 @@ erDiagram
         int guia_id FK
         decimal monto
         date fecha "sin uso desde la Entrega del dia"
+    }
+    PAGAS_REPARTIDOR {
+        int id PK
+        date fecha
+        int repartidor_id FK
+        decimal monto
     }
     NO_PAGOS {
         int id PK
@@ -188,6 +196,7 @@ erDiagram
 | Cerrar el día bloquea la edición | `jornadas_despacho.cerrada` |
 | Se asume que todos pagan; solo se anotan excepciones | `no_pagos` con `UNIQUE(cliente_id, fecha)`: lo que debía ese día pasa a su próximo día con pan. La tabla `pagos` queda sin uso (reemplazada por la Entrega del día) |
 | Entrega del día por repartidor | Se calcula desde la planilla: clientes de reparto del día (los rinde quien repartió) + pago día siguiente que corresponde cobrar hoy (los rinde su cobrador). Presenciales aparte |
+| Paga del repartidor | `repartidores.paga_diaria` (habitual, $20.000) y `pagas_repartidor` (la de cada día, `UNIQUE(fecha, repartidor_id)`). Entrega = cobrado − paga |
 | Día con un solo repartidor | `repartidor_unico_id`: las líneas del día quedan a su nombre y cobra todo el pago día siguiente |
 | Precio especial por cliente | `clientes.precio_kg_especial` (null = precio general vigente) |
 | Kg no cobrados cada día (ej. Suegra: 1 kg) | `clientes.kg_descuento_diario` → monto = (kg − descuento) × precio |
