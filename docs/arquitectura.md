@@ -57,6 +57,7 @@ backend/src/
 ├── prisma/                  → acceso a la base de datos (PrismaService)
 ├── auth/                    → login, /auth/me, cambio de contraseña propio, emisión de JWT
 ├── usuarios/                → gestión de usuarios y roles (solo ADMIN)
+├── mantencion/              → limpieza de datos de prueba de Despacho (solo ADMIN)
 ├── audit/                   → registro y consulta de auditoría (solo ADMIN)
 ├── common/
 │   ├── decorators/          → @Public(), @Roles(), @CurrentUser()
@@ -65,7 +66,7 @@ backend/src/
 ├── health/                  → /api/health (healthcheck de Docker)
 │
 ├── clientes/  repartidores/  precios/        → DESPACHO: maestros
-├── planilla/  guias/  cuadre/  pagos/        → DESPACHO: operación diaria, cobro y saldos
+├── planilla/  guias/  entrega/              → DESPACHO: operación diaria y entrega del día por repartidor
 ├── reportes/                                 → DESPACHO: historial y promedios mensuales
 │
 ├── productos/  proveedores/                  → MESÓN: catálogo (importación/exportación CAS)

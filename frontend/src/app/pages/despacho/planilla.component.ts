@@ -8,6 +8,7 @@ import {
   ModalidadCliente,
   NOMBRE_VUELTA,
   Planilla,
+  Repartidor,
   VUELTAS,
   Vuelta,
   VueltaPlanilla,
@@ -59,6 +60,19 @@ interface Grupo {
       "Guía" emite e imprime la guía de esa entrega; "Guías" en el encabezado lo hace para toda la columna.
       N° en naranja = guía emitida sin imprimir · N° en verde = guía impresa.
     </p>
+
+    <div class="reparte">
+      <label for="reparte-hoy">¿Quién repartió hoy?</label>
+      <select id="reparte-hoy" [disabled]="(cerrada() && !esAdmin()) || cambiandoReparto()" (change)="cambiarReparto($any($event.target).value)">
+        <option value="" [selected]="!repartidorUnicoId()">Cada repartidor sus clientes</option>
+        @for (r of repartidores(); track r.id) {
+          <option [value]="r.id" [selected]="repartidorUnicoId() === r.id">Solo {{ r.nombre }} (repartió y cobra todo)</option>
+        }
+      </select>
+      @if (repartidorUnicoId()) {
+        <span class="reparte__nota">Toda la planilla de hoy se cuadra a este repartidor en la Entrega del día.</span>
+      }
+    </div>
 
     @if (mensaje()) {
       <p class="pp-aviso-ok" role="status">{{ mensaje() }}</p>
@@ -218,6 +232,28 @@ interface Grupo {
     .estado--cerrado {
       background: #fdf0e1;
       color: var(--pp-alerta);
+    }
+    .reparte {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem 0.75rem;
+      margin: 0 0 0.75rem;
+      font-size: 0.9rem;
+    }
+    .reparte label {
+      font-weight: 600;
+    }
+    .reparte select {
+      min-height: 34px;
+      padding: 0.2rem 0.5rem;
+      border: 1px solid var(--pp-borde);
+      border-radius: 8px;
+      font: 0.9rem var(--pp-fuente);
+    }
+    .reparte__nota {
+      color: var(--pp-celeste-oscuro);
+      font-weight: 600;
     }
     .resumen-dia {
       display: flex;
@@ -410,7 +446,11 @@ export class PlanillaComponent {
   protected readonly error = signal<string | null>(null);
   protected readonly mensaje = signal<string | null>(null);
 
+  protected readonly repartidores = signal<Repartidor[]>([]);
+  protected readonly cambiandoReparto = signal(false);
+
   protected readonly cerrada = computed(() => this.planilla()?.jornada.cerrada ?? false);
+  protected readonly repartidorUnicoId = computed(() => this.planilla()?.jornada.repartidorUnicoId ?? null);
   protected readonly esAdmin = computed(() => this.auth.usuario()?.rol === 'ADMIN');
 
   /** Grupos en el mismo orden del cuaderno */
@@ -423,7 +463,7 @@ export class PlanillaComponent {
       grupos.push({
         clave: 'pds',
         titulo: 'Pago día siguiente',
-        nota: 'Llevan hoy y se cobran mañana con su repartidor.',
+        nota: 'Llevan hoy y pagan el próximo día en que vuelvan a recibir pan.',
         filtroLote: { modalidad: 'PAGO_DIA_SIGUIENTE' },
         filas: pds,
       });
@@ -471,6 +511,7 @@ export class PlanillaComponent {
 
   constructor() {
     this.cargar();
+    this.api.repartidores().subscribe({ next: (rs) => this.repartidores.set(rs) });
     // Al volver desde la pestaña de impresión, refleja si las guías se confirmaron como impresas
     const recargar = () => this.cargar();
     window.addEventListener('focus', recargar);
@@ -536,6 +577,29 @@ export class PlanillaComponent {
       error: (e) => {
         this.error.set(mensajeError(e, 'No se pudo cargar la planilla.'));
         this.cargando.set(false);
+      },
+    });
+  }
+
+  /** Día en que un solo repartidor hace todo el reparto ('' = cada uno el suyo) */
+  cambiarReparto(valor: string): void {
+    const repartidorId = valor ? Number(valor) : null;
+    this.cambiandoReparto.set(true);
+    this.limpiarAvisos();
+    this.api.repartidorUnico(this.fecha(), repartidorId).subscribe({
+      next: (r) => {
+        this.cambiandoReparto.set(false);
+        const nombre = this.repartidores().find((x) => x.id === repartidorId)?.nombre;
+        this.mensaje.set(
+          (nombre ? `Hoy reparte solo ${nombre}: todo se le cuadra a él.` : 'Hoy cada repartidor tiene sus clientes.') +
+            (r.guiasEmitidas > 0 ? ` Las ${r.guiasEmitidas} guía(s) ya emitidas conservan el repartidor impreso.` : ''),
+        );
+        this.cargar();
+      },
+      error: (e) => {
+        this.cambiandoReparto.set(false);
+        this.error.set(mensajeError(e, 'No se pudo cambiar el repartidor del día.'));
+        this.cargar();
       },
     });
   }

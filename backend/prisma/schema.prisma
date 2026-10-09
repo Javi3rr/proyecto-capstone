@@ -83,10 +83,14 @@ model Repartidor {
   creadoEn DateTime @default(now()) @map("creado_en")
   actualizadoEn DateTime @updatedAt @map("actualizado_en")
 
-  clientes  Cliente[]
-  despachos Despacho[]
-  guias     Guia[]
-  pagos     Pago[]
+  clientes       Cliente[]         @relation("ClienteRepartidor")
+  /// Clientes de pago día siguiente cuyo pago cobra este repartidor
+  clientesCobro  Cliente[]         @relation("ClienteCobrador")
+  /// Días en que este repartidor hizo todo el reparto solo
+  jornadasUnico  JornadaDespacho[]
+  despachos      Despacho[]
+  guias          Guia[]
+  pagos          Pago[]
 
   @@map("repartidores")
 }
@@ -99,7 +103,10 @@ model Cliente {
   modalidad        ModalidadCliente
   /// Repartidor que entrega / cobra (null para presenciales)
   repartidorId     Int?             @map("repartidor_id")
-  repartidor       Repartidor?      @relation(fields: [repartidorId], references: [id])
+  repartidor       Repartidor?      @relation("ClienteRepartidor", fields: [repartidorId], references: [id])
+  /// Pago día siguiente: repartidor que cobra lo del día anterior (null = el mismo que reparte)
+  cobradorId       Int?             @map("cobrador_id")
+  cobrador         Repartidor?      @relation("ClienteCobrador", fields: [cobradorId], references: [id])
   /// Orden en que aparece en la planilla (igual al cuaderno)
   orden            Int              @default(0)
   /// Precio especial por kg (si es null se usa el precio general vigente)
@@ -113,6 +120,7 @@ model Cliente {
   despachos Despacho[]
   guias     Guia[]
   pagos     Pago[]
+  noPagos   NoPago[]
 
   @@unique([nombre, modalidad])
   @@index([modalidad, orden])
@@ -137,6 +145,9 @@ model JornadaDespacho {
   cerrada      Boolean    @default(false)
   cerradaEn    DateTime?  @map("cerrada_en")
   cerradaPorId Int?       @map("cerrada_por_id")
+  /// Si ese día un solo repartidor hizo todo el reparto (y cobra todo lo del día anterior). null = cada uno lo suyo
+  repartidorUnicoId Int?        @map("repartidor_unico_id")
+  repartidorUnico   Repartidor? @relation(fields: [repartidorUnicoId], references: [id])
   creadoEn     DateTime   @default(now()) @map("creado_en")
 
   despachos Despacho[]
@@ -226,6 +237,20 @@ model Pago {
   /// Un registro de pago por cliente y día de cuadre
   @@unique([clienteId, fecha])
   @@map("pagos")
+}
+
+/// Excepción de cobro: el cliente no pagó ese día. Lo que debía pasa al siguiente día en que reciba pan.
+model NoPago {
+  id          Int      @id @default(autoincrement())
+  clienteId   Int      @map("cliente_id")
+  cliente     Cliente  @relation(fields: [clienteId], references: [id])
+  fecha       DateTime @db.Date
+  nota        String?  @db.VarChar(200)
+  creadoPorId Int?     @map("creado_por_id")
+  creadoEn    DateTime @default(now()) @map("creado_en")
+
+  @@unique([clienteId, fecha])
+  @@map("no_pagos")
 }
 
 // ------------------------------------------------------------

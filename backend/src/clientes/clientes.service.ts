@@ -11,7 +11,10 @@ export interface FiltroClientes {
   buscar?: string;
 }
 
-const INCLUDE_REPARTIDOR = { repartidor: { select: { id: true, nombre: true } } } as const;
+const INCLUDE_REPARTIDOR = {
+  repartidor: { select: { id: true, nombre: true } },
+  cobrador: { select: { id: true, nombre: true } },
+} as const;
 
 @Injectable()
 export class ClientesService {
@@ -41,6 +44,7 @@ export class ClientesService {
 
   async crear(dto: CrearClienteDto, usuarioId?: number) {
     const repartidorId = await this.resolverRepartidor(dto.modalidad, dto.repartidorId);
+    const cobradorId = await this.resolverCobrador(dto.modalidad, dto.cobradorId);
     const orden = dto.orden ?? (await this.siguienteOrden(dto.modalidad));
 
     try {
@@ -49,6 +53,7 @@ export class ClientesService {
           nombre: dto.nombre,
           modalidad: dto.modalidad,
           repartidorId,
+          cobradorId,
           direccion: dto.direccion ?? null,
           telefono: dto.telefono ?? null,
           orden,
@@ -71,11 +76,13 @@ export class ClientesService {
     const modalidad = dto.modalidad ?? antes.modalidad;
     const repartidorPedido = dto.repartidorId !== undefined ? dto.repartidorId : antes.repartidorId;
     const repartidorId = await this.resolverRepartidor(modalidad, repartidorPedido);
+    const cobradorId = await this.resolverCobrador(modalidad, dto.cobradorId !== undefined ? dto.cobradorId : antes.cobradorId);
 
     const data: Prisma.ClienteUncheckedUpdateInput = {
       nombre: dto.nombre ?? undefined,
       modalidad,
       repartidorId,
+      cobradorId,
       direccion: dto.direccion,
       telefono: dto.telefono,
       orden: dto.orden,
@@ -99,7 +106,7 @@ export class ClientesService {
     }
   }
 
-  /** Eliminación lógica: el cliente conserva su historial de despachos, guías y pagos */
+  /** Eliminación lógica: el cliente conserva su historial de despachos y guías */
   desactivar(id: number, usuarioId?: number) {
     return this.actualizar(id, { activo: false }, usuarioId);
   }
@@ -116,6 +123,14 @@ export class ClientesService {
     }
     const r = await this.prisma.repartidor.findUnique({ where: { id: repartidorId } });
     if (!r || !r.activo) throw new BadRequestException('El repartidor seleccionado no existe o está inactivo');
+    return r.id;
+  }
+
+  /** Cobrador del pago día siguiente: solo aplica a esa modalidad (null = el mismo que reparte) */
+  private async resolverCobrador(modalidad: ModalidadCliente, cobradorId?: number | null): Promise<number | null> {
+    if (modalidad !== 'PAGO_DIA_SIGUIENTE' || !cobradorId) return null;
+    const r = await this.prisma.repartidor.findUnique({ where: { id: cobradorId } });
+    if (!r || !r.activo) throw new BadRequestException('El cobrador seleccionado no existe o está inactivo');
     return r.id;
   }
 

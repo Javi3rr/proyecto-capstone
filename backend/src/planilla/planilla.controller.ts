@@ -3,7 +3,7 @@ import type { JwtPayload } from '../common/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ParseFechaPipe } from '../common/parse-fecha.pipe';
-import { RegistrarLineaDto } from './dto/linea.dto';
+import { RegistrarLineaDto, RepartidorUnicoDto } from './dto/linea.dto';
 import { PlanillaService } from './planilla.service';
 
 @Roles('DESPACHO')
@@ -27,6 +27,16 @@ export class PlanillaController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.planilla.registrarLinea(fecha, clienteId, vuelta, dto, { id: user.sub, rol: user.rol });
+  }
+
+  /** PUT /api/planilla/2026-10-04/repartidor-unico  { "repartidorId": 2 }  (null = cada repartidor el suyo) */
+  @Put(':fecha/repartidor-unico')
+  repartidorUnico(
+    @Param('fecha', ParseFechaPipe) fecha: string,
+    @Body() dto: RepartidorUnicoDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.planilla.asignarRepartidorUnico(fecha, dto.repartidorId ?? null, { id: user.sub, rol: user.rol });
   }
 
   @Post(':fecha/cerrar')

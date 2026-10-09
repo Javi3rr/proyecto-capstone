@@ -18,6 +18,11 @@ export class CrearClienteDto {
   @IsInt()
   repartidorId?: number | null;
 
+  /** Solo pago día siguiente: repartidor que cobra lo del día anterior (null = el mismo que reparte) */
+  @IsOptional()
+  @IsInt()
+  cobradorId?: number | null;
+
   @Transform(textoLimpio)
   @IsOptional()
   @IsString()
@@ -65,6 +70,11 @@ export class ActualizarClienteDto {
   @IsOptional()
   @IsInt()
   repartidorId?: number | null;
+
+  /** Solo pago día siguiente: repartidor que cobra lo del día anterior (null = el mismo que reparte) */
+  @IsOptional()
+  @IsInt()
+  cobradorId?: number | null;
 
   @Transform(textoLimpio)
   @IsOptional()

@@ -35,12 +35,16 @@ export interface Cliente {
   kgDescuentoDiario: Decimal;
   activo: boolean;
   repartidor: { id: number; nombre: string } | null;
+  /** Pago día siguiente: quién cobra lo del día anterior (null = el mismo que reparte) */
+  cobradorId: number | null;
+  cobrador: { id: number; nombre: string } | null;
 }
 
 export interface ClienteForm {
   nombre: string;
   modalidad: ModalidadCliente;
   repartidorId: number | null;
+  cobradorId: number | null;
   direccion: string | null;
   telefono: string | null;
   orden?: number;
@@ -167,7 +171,7 @@ export interface FilaPlanilla {
 
 export interface Planilla {
   fecha: string;
-  jornada: { id: number | null; cerrada: boolean; cerradaEn: string | null };
+  jornada: { id: number | null; cerrada: boolean; cerradaEn: string | null; repartidorUnicoId: number | null };
   precioGeneral: Decimal | null;
   filas: FilaPlanilla[];
 }
@@ -195,85 +199,59 @@ export interface Guia {
   esCopia?: boolean;
 }
 
-// ---------- Cuadre ----------
+// ---------- Entrega del día ----------
 
-export interface LineaCuadre {
-  clienteId: number;
-  cliente: string;
-  vueltas: Vuelta[];
-  kg: number;
-  kgDescuento: number;
-  precioKg: number;
-  monto: number;
-  guiaIds: number[];
-  sinGuia: number;
-  /** Lo que pagó en el cuadre de este día (null = aún no se registra) */
-  pagado: number | null;
-  /** Lo que debía antes de este día (negativo = saldo a favor) */
-  saldoAnterior: number;
-}
-
-export interface CuadreRepartidor {
-  repartidor: { id: number; nombre: string; patente: string | null };
-  cobrosDelDia: LineaCuadre[];
-  cobrosPagoDiaAnterior: LineaCuadre[];
-  entregasPagoManana: LineaCuadre[];
-  totales: {
-    kgEntregados: number;
-    montoACobrar: number;
-    montoPagoManana: number;
-    montoRecibido: number;
-    pagosSinRegistrar: number;
-  };
-}
-
-export interface Cuadre {
+/** Lo despachado a un cliente en un día (suma de sus vueltas) */
+export interface CargoEntrega {
   fecha: string;
-  cerrada: boolean;
-  fechaAnterior: string | null;
-  repartidores: CuadreRepartidor[];
-  presenciales: {
-    lineas: LineaCuadre[];
-    totales: { kg: number; monto: number; montoRecibido: number; pagosSinRegistrar: number };
-  };
-  totalesDia: { kg: number; monto: number; sinGuia: number };
+  kg: number;
+  monto: number;
 }
 
-// ---------- Pagos y saldos ----------
-
-export interface SaldoCliente {
+export interface FilaEntrega {
   clienteId: number;
   cliente: string;
   modalidad: ModalidadCliente;
-  repartidor: { id: number; nombre: string } | null;
+  /** Días que se cobran hoy (o que quedaron sin pagar, si noPago) */
+  cargos: CargoEntrega[];
+  kg: number;
+  monto: number;
+  noPago: { nota: string | null } | null;
+}
+
+export interface EntregaRepartidor {
+  repartidor: { id: number; nombre: string; patente: string | null };
+  cobrosDelDia: FilaEntrega[];
+  cobrosDiaAnterior: FilaEntrega[];
+  noPagaron: FilaEntrega[];
+  pagaDespues: FilaEntrega[];
+  totales: { kgRepartidos: number; kgDelDia: number; kgDiaAnterior: number; montoEntregar: number; montoNoPagado: number };
+}
+
+export interface PendienteCobro {
+  clienteId: number;
+  cliente: string;
+  modalidad: ModalidadCliente;
   activo: boolean;
-  totalDespachado: number;
-  totalPagado: number;
-  /** Positivo = debe; negativo = saldo a favor */
-  saldo: number;
-  /** Pago día siguiente entregado y que aún no corresponde cobrar */
-  porCobrar: number;
-  ultimoPago: string | null;
-}
-
-export interface MovimientoCuenta {
-  fecha: string;
-  despachos: { fechaDespacho: string; kg: number; monto: number }[];
-  cargo: number;
-  pagado: number;
-  recibidoPor: string | null;
-  saldo: number;
-}
-
-export interface EstadoCuenta {
-  cliente: { id: number; nombre: string; modalidad: ModalidadCliente; repartidor: { id: number; nombre: string } | null };
+  kg: number;
+  monto: number;
   desde: string;
-  hasta: string;
-  saldoInicial: number;
-  movimientos: MovimientoCuenta[];
-  saldoFinal: number;
-  porCobrar: number;
-  totales: { cargo: number; pagado: number };
+  motivo: string;
+}
+
+export interface Entrega {
+  fecha: string;
+  cerrada: boolean;
+  repartidorUnico: { id: number; nombre: string; patente: string | null } | null;
+  repartidores: EntregaRepartidor[];
+  presenciales: {
+    cobros: FilaEntrega[];
+    noPagaron: FilaEntrega[];
+    totales: { kg: number; monto: number; montoNoPagado: number };
+  };
+  pendientes: PendienteCobro[];
+  sinRepartidor: string[];
+  totalesDia: { kg: number; monto: number; montoEntregar: number; sinGuia: number };
 }
 
 // ---------- Reportes ----------
