@@ -10,7 +10,7 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; usuario: UsuarioAdmin } | {
 
 const DESCRIPCION_ROL: Record<Rol, string> = {
   ADMIN: 'Ve ambos módulos, reportes, auditoría y usuarios',
-  DESPACHO: 'Planilla, guías, cuadre y clientes',
+  DESPACHO: 'Planilla, guías, entrega del día y clientes',
   MESON: 'Facturas, productos, stock y conteos',
 };
 

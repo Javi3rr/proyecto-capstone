@@ -4,8 +4,7 @@ import { Observable } from 'rxjs';
 import {
   Cliente,
   ClienteForm,
-  Cuadre,
-  EstadoCuenta,
+  Entrega,
   FiltroHistorial,
   Guia,
   Historial,
@@ -16,7 +15,6 @@ import {
   PromedioMensual,
   Repartidor,
   RepartidorForm,
-  SaldoCliente,
   Vuelta,
 } from '../../core/models';
 
@@ -130,23 +128,25 @@ export class DespachoService {
     return this.http.post<Guia>(`/api/guias/${id}/anular`, { motivo });
   }
 
-  // ---------- Cuadre ----------
-  cuadre(fecha: string): Observable<Cuadre> {
-    return this.http.get<Cuadre>(`/api/cuadre/${fecha}`);
+  // ---------- Entrega del día ----------
+  entrega(fecha: string): Observable<Entrega> {
+    return this.http.get<Entrega>(`/api/entrega/${fecha}`);
   }
 
-  // ---------- Pagos y saldos ----------
-  /** Registra lo que pagó un cliente en el cuadre del día (monto 0 = no pagó) */
-  registrarPago(fecha: string, clienteId: number, monto: number, repartidorId: number | null): Observable<unknown> {
-    return this.http.put(`/api/pagos/${fecha}/clientes/${clienteId}`, { monto, repartidorId });
+  /** El cliente recibió pan pero no pagó: su deuda pasa al próximo día con pan */
+  marcarNoPago(fecha: string, clienteId: number, nota: string | null): Observable<unknown> {
+    return this.http.put(`/api/entrega/${fecha}/no-pago/${clienteId}`, { nota });
   }
 
-  saldos(): Observable<SaldoCliente[]> {
-    return this.http.get<SaldoCliente[]>('/api/pagos/saldos');
+  quitarNoPago(fecha: string, clienteId: number): Observable<unknown> {
+    return this.http.delete(`/api/entrega/${fecha}/no-pago/${clienteId}`);
   }
 
-  estadoCuenta(clienteId: number, desde: string, hasta: string): Observable<EstadoCuenta> {
-    return this.http.get<EstadoCuenta>(`/api/pagos/clientes/${clienteId}/estado-cuenta`, { params: { desde, hasta } });
+  /** Día en que un solo repartidor hace todo el reparto (null = cada uno el suyo) */
+  repartidorUnico(fecha: string, repartidorId: number | null): Observable<{ repartidorUnicoId: number | null; guiasEmitidas: number }> {
+    return this.http.put<{ repartidorUnicoId: number | null; guiasEmitidas: number }>(`/api/planilla/${fecha}/repartidor-unico`, {
+      repartidorId,
+    });
   }
 
   // ---------- Reportes ----------

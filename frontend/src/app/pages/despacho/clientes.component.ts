@@ -59,6 +59,17 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; cliente: Cliente };
                 }
               </select>
             </div>
+            @if (form.controls.modalidad.value === 'PAGO_DIA_SIGUIENTE') {
+              <div class="pp-campo">
+                <label for="cobrador">Quién cobra el pago del día siguiente</label>
+                <select id="cobrador" formControlName="cobradorId">
+                  <option [ngValue]="null">El mismo repartidor</option>
+                  @for (r of repartidoresActivos(); track r.id) {
+                    <option [ngValue]="r.id">{{ r.nombre }}</option>
+                  }
+                </select>
+              </div>
+            }
             <div class="pp-campo">
               <label for="precio">Precio especial por kg</label>
               <input id="precio" type="number" min="1" step="1" formControlName="precioKgEspecial" placeholder="Vacío = precio general" />
@@ -131,7 +142,12 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; cliente: Cliente };
                   <td>{{ c.orden }}</td>
                   <td><strong>{{ c.nombre }}</strong></td>
                   <td>{{ nombreModalidad[c.modalidad] }}</td>
-                  <td>{{ c.repartidor?.nombre ?? '—' }}</td>
+                  <td>
+                    {{ c.repartidor?.nombre ?? '—' }}
+                    @if (c.cobrador) {
+                      <small class="cobra">Cobra: {{ c.cobrador.nombre }}</small>
+                    }
+                  </td>
                   <td>
                     @if (c.precioKgEspecial !== null) {
                       {{ num(c.precioKgEspecial) | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}
@@ -164,6 +180,11 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; cliente: Cliente };
     </section>
   `,
   styles: `
+    .cobra {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--pp-celeste-oscuro);
+    }
     .encabezado {
       display: flex;
       justify-content: space-between;
@@ -268,6 +289,7 @@ export class ClientesComponent {
     nombre: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(120)]),
     modalidad: this.fb.nonNullable.control<ModalidadCliente>('REPARTO'),
     repartidorId: this.fb.control<number | null>(null),
+    cobradorId: this.fb.control<number | null>(null),
     precioKgEspecial: this.fb.control<number | null>(null, [Validators.min(1)]),
     kgDescuentoDiario: this.fb.control<number | null>(0, [Validators.min(0)]),
     orden: this.fb.control<number | null>(null, [Validators.min(0)]),
@@ -319,6 +341,7 @@ export class ClientesComponent {
       nombre: '',
       modalidad: 'REPARTO',
       repartidorId: null,
+      cobradorId: null,
       precioKgEspecial: null,
       kgDescuentoDiario: 0,
       orden: null,
@@ -334,6 +357,7 @@ export class ClientesComponent {
       nombre: c.nombre,
       modalidad: c.modalidad,
       repartidorId: c.repartidorId,
+      cobradorId: c.cobradorId,
       precioKgEspecial: c.precioKgEspecial === null ? null : Number(c.precioKgEspecial),
       kgDescuentoDiario: Number(c.kgDescuentoDiario),
       orden: c.orden,
@@ -362,6 +386,7 @@ export class ClientesComponent {
       nombre: v.nombre.trim(),
       modalidad: v.modalidad,
       repartidorId: v.modalidad === 'PRESENCIAL' ? null : v.repartidorId,
+      cobradorId: v.modalidad === 'PAGO_DIA_SIGUIENTE' ? v.cobradorId : null,
       precioKgEspecial: v.precioKgEspecial ?? null,
       kgDescuentoDiario: v.kgDescuentoDiario ?? 0,
       direccion: v.direccion?.trim() || null,

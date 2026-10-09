@@ -49,8 +49,8 @@ export class PlanillaService {
     return {
       fecha,
       jornada: jornada
-        ? { id: jornada.id, cerrada: jornada.cerrada, cerradaEn: jornada.cerradaEn }
-        : { id: null, cerrada: false, cerradaEn: null },
+        ? { id: jornada.id, cerrada: jornada.cerrada, cerradaEn: jornada.cerradaEn, repartidorUnicoId: jornada.repartidorUnicoId }
+        : { id: null, cerrada: false, cerradaEn: null, repartidorUnicoId: null },
       precioGeneral: general?.valor ?? null,
       filas: clientes.map((c) => ({
         cliente: c,
@@ -137,7 +137,8 @@ export class PlanillaService {
       kgDescuento,
       precioKg: precio,
       monto: calcularMonto(dto.kg, kgDescuento, precio),
-      repartidorId: cliente.repartidorId,
+      // Si hoy reparte uno solo, todo lo de reparto queda a su nombre
+      repartidorId: cliente.modalidad === 'PRESENCIAL' ? null : (jornada.repartidorUnicoId ?? cliente.repartidorId),
       creadoPorId: usuario.id ?? null,
     };
 
@@ -182,6 +183,41 @@ export class PlanillaService {
         monto: calcularMonto(candidata.kg, cliente.kgDescuentoDiario, candidata.precioKg),
       },
     });
+  }
+
+  /**
+   * Indica que ese día un solo repartidor hizo todo el reparto (null = cada uno el suyo).
+   * Las líneas ya anotadas pasan a su nombre, y en la Entrega del día rinde también todo lo de pago día siguiente.
+   */
+  async asignarRepartidorUnico(fecha: string, repartidorId: number | null, usuario: UsuarioAccion) {
+    if (repartidorId !== null) {
+      const r = await this.prisma.repartidor.findUnique({ where: { id: repartidorId } });
+      if (!r || !r.activo) throw new BadRequestException('El repartidor seleccionado no existe o está inactivo');
+    }
+    const existente = await this.prisma.jornadaDespacho.findUnique({ where: { fecha: fechaDesdeISO(fecha) } });
+    if (existente) this.validarAbierta(existente.cerrada, usuario);
+    const antes = existente?.repartidorUnicoId ?? null;
+
+    const jornada = await this.prisma.$transaction(async (tx) => {
+      const j = await tx.jornadaDespacho.upsert({
+        where: { fecha: fechaDesdeISO(fecha) },
+        update: { repartidorUnicoId: repartidorId },
+        create: { fecha: fechaDesdeISO(fecha), repartidorUnicoId: repartidorId },
+      });
+      const lineas = await tx.despacho.findMany({
+        where: { jornadaId: j.id, cliente: { modalidad: { not: 'PRESENCIAL' } } },
+        select: { id: true, repartidorId: true, cliente: { select: { repartidorId: true } } },
+      });
+      for (const l of lineas) {
+        const nuevo = repartidorId ?? l.cliente.repartidorId;
+        if (l.repartidorId !== nuevo) await tx.despacho.update({ where: { id: l.id }, data: { repartidorId: nuevo } });
+      }
+      return j;
+    });
+
+    const guiasEmitidas = await this.prisma.guia.count({ where: { fecha: fechaDesdeISO(fecha), estado: 'VIGENTE' } });
+    await this.audit.registrarCambio(usuario.id, 'ACTUALIZAR', 'jornada', jornada.id, { repartidorUnicoId: antes }, { repartidorUnicoId: repartidorId });
+    return { repartidorUnicoId: jornada.repartidorUnicoId, guiasEmitidas };
   }
 
   /** Cierra el día: la planilla queda bloqueada (solo ADMIN puede corregir) */

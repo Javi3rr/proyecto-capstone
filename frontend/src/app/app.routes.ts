@@ -50,15 +50,13 @@ export const routes: Routes = [
             loadComponent: () => import('./pages/despacho/guias.component').then((m) => m.GuiasComponent),
           },
           {
-            path: 'cuadre',
-            title: 'Cuadre · Patopan',
-            loadComponent: () => import('./pages/despacho/cuadre.component').then((m) => m.CuadreComponent),
+            path: 'entrega',
+            title: 'Entrega del día · Patopan',
+            loadComponent: () => import('./pages/despacho/entrega.component').then((m) => m.EntregaComponent),
           },
-          {
-            path: 'saldos',
-            title: 'Pagos y saldos · Patopan',
-            loadComponent: () => import('./pages/despacho/saldos.component').then((m) => m.SaldosComponent),
-          },
+          // Pantallas antiguas reemplazadas por la Entrega del día
+          { path: 'cuadre', redirectTo: 'entrega' },
+          { path: 'saldos', redirectTo: 'entrega' },
           {
             path: 'historial',
             title: 'Historial de despachos · Patopan',

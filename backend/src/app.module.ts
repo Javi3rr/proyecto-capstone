@@ -8,11 +8,11 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { HealthController } from './health/health.controller';
-import { CuadreModule } from './cuadre/cuadre.module';
+import { EntregaModule } from './entrega/entrega.module';
 import { FacturasModule } from './facturas/facturas.module';
 import { GuiasModule } from './guias/guias.module';
 import { InventarioModule } from './inventario/inventario.module';
-import { PagosModule } from './pagos/pagos.module';
+import { MantencionModule } from './mantencion/mantencion.module';
 import { PlanillaModule } from './planilla/planilla.module';
 import { PreciosModule } from './precios/precios.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -34,8 +34,8 @@ import { VentasModule } from './ventas/ventas.module';
     PreciosModule,
     PlanillaModule,
     GuiasModule,
-    CuadreModule,
-    PagosModule,
+    EntregaModule,
+    MantencionModule,
     ReportesModule,
     ProductosModule,
     ProveedoresModule,

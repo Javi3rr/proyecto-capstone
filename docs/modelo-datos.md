@@ -19,6 +19,7 @@ erDiagram
     CLIENTES ||--o{ PAGOS : "realiza"
     GUIAS ||--o{ PAGOS : "se paga con"
     REPARTIDORES ||--o{ PAGOS : "rinde"
+    CLIENTES ||--o{ NO_PAGOS : "excepcion de cobro"
 
     PROVEEDORES ||--o{ FACTURAS : "emite"
     FACTURAS ||--|{ FACTURAS_DETALLE : "contiene"
@@ -57,6 +58,7 @@ erDiagram
         string nombre
         enum modalidad "REPARTO | PAGO_DIA_SIGUIENTE | PRESENCIAL"
         int repartidor_id FK
+        int cobrador_id FK "cobra el pago dia siguiente"
         int orden
         decimal precio_kg_especial
         decimal kg_descuento_diario
@@ -71,6 +73,7 @@ erDiagram
         int id PK
         date fecha UK
         bool cerrada
+        int repartidor_unico_id FK "dia con un solo repartidor"
     }
     DESPACHOS {
         int id PK
@@ -100,7 +103,13 @@ erDiagram
         int cliente_id FK
         int guia_id FK
         decimal monto
-        date fecha
+        date fecha "sin uso desde la Entrega del dia"
+    }
+    NO_PAGOS {
+        int id PK
+        int cliente_id FK
+        date fecha "UK con cliente_id"
+        string nota
     }
     PRODUCTOS {
         int id PK
@@ -171,14 +180,15 @@ erDiagram
 | Regla | Cómo se cumple |
 |---|---|
 | Replicar las secciones del cuaderno | `clientes.modalidad` + `clientes.repartidor_id` + `clientes.orden` |
-| "Pago día siguiente" se cobra con el Repartidor 2 | Esos clientes quedan asociados al Repartidor 2; el cuadre suma sus despachos del día anterior |
+| "Pago día siguiente": quién cobra | `clientes.cobrador_id` (ej. Drake → José Cartés, el resto → Carlos Gonzalez); null = el mismo repartidor. Si ese día reparte uno solo (`jornadas_despacho.repartidor_unico_id`), cobra él todo |
 | 3 vueltas al día como las columnas del cuaderno (mañana, tarde 1, tarde 2) | `despachos.vuelta` + `UNIQUE(jornada_id, cliente_id, vuelta)` |
 | Una guía por vuelta; corregir kg exige anularla | `guias.vuelta` + `guias.estado` + validación en la API |
 | El descuento diario se aplica una sola vez al día | Se asigna a la primera vuelta con pan (`despachos.kg_descuento`) |
-| Cobro de "pago día siguiente" | El cuadre suma sus líneas del día trabajado anterior al repartidor asignado |
+| Cobro de "pago día siguiente" | Se cobra el **próximo día en que el cliente vuelva a recibir pan** (si no trabaja el sábado, lo del viernes se cobra el domingo; si faltan varios días, se junta) |
 | Cerrar el día bloquea la edición | `jornadas_despacho.cerrada` |
-| Pagos desde el cuadre, uno por cliente y día (pueden ser parciales o abonar deuda anterior) | `pagos` con `UNIQUE(cliente_id, fecha)`; monto 0 elimina el registro |
-| Saldo del cliente | Σ despachos ya cobrables − Σ pagos; el "pago día siguiente" se cobra en la jornada siguiente |
+| Se asume que todos pagan; solo se anotan excepciones | `no_pagos` con `UNIQUE(cliente_id, fecha)`: lo que debía ese día pasa a su próximo día con pan. La tabla `pagos` queda sin uso (reemplazada por la Entrega del día) |
+| Entrega del día por repartidor | Se calcula desde la planilla: clientes de reparto del día (los rinde quien repartió) + pago día siguiente que corresponde cobrar hoy (los rinde su cobrador). Presenciales aparte |
+| Día con un solo repartidor | `repartidor_unico_id`: las líneas del día quedan a su nombre y cobra todo el pago día siguiente |
 | Precio especial por cliente | `clientes.precio_kg_especial` (null = precio general vigente) |
 | Kg no cobrados cada día (ej. Suegra: 1 kg) | `clientes.kg_descuento_diario` → monto = (kg − descuento) × precio |
 | Un cambio de precio no altera guías emitidas | `precio_kg` se copia en `despachos` y `guias` al momento de emitir |

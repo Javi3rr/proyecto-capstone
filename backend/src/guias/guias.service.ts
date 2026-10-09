@@ -63,8 +63,8 @@ export class GuiasService {
       where: {
         jornadaId: jornada.id,
         kg: { gt: 0 },
-        cliente: { modalidad: filtro.modalidad },
-        repartidorId: filtro.repartidorId,
+        // El grupo es el de la planilla (repartidor habitual del cliente), aunque ese día haya repartido otro
+        cliente: { modalidad: filtro.modalidad, repartidorId: filtro.repartidorId },
         vuelta: filtro.vuelta,
       },
       include: { jornada: true, guias: true, cliente: { select: { orden: true } } },

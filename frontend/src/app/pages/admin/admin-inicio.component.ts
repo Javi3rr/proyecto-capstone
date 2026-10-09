@@ -2,6 +2,7 @@ import { DatePipe } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import { mensajeError } from '../../core/errores';
 import { PaginaAuditoria, RegistroAuditoria } from '../../core/models';
 
 /** Inicio del administrador: acceso a todos los módulos + últimos eventos de auditoría */
@@ -17,7 +18,7 @@ import { PaginaAuditoria, RegistroAuditoria } from '../../core/models';
     <div class="accesos">
       <a routerLink="/despacho" class="pp-card acceso">
         <h2>Despacho</h2>
-        <p class="pp-texto-suave">Planilla, guías, cuadre, saldos y reportes.</p>
+        <p class="pp-texto-suave">Planilla, guías, entrega del día y reportes.</p>
       </a>
       <a routerLink="/meson" class="pp-card acceso">
         <h2>Mesón</h2>
@@ -68,8 +69,37 @@ import { PaginaAuditoria, RegistroAuditoria } from '../../core/models';
         </div>
       }
     </section>
+
+    <section class="pp-card limpieza">
+      <h2>Empezar Despacho desde cero</h2>
+      <p class="pp-texto-suave">
+        Borra las planillas, guías, pagos y marcas de "no pagó" de prueba. Se conservan los clientes, repartidores, precios,
+        usuarios, todo el Mesón y la auditoría. La numeración de guías vuelve a partir en N° 1. <strong>No se puede deshacer.</strong>
+      </p>
+      @if (resultadoLimpieza()) {
+        <p class="pp-aviso-ok">{{ resultadoLimpieza() }}</p>
+      }
+      @if (errorLimpieza()) {
+        <p class="pp-alerta-error" role="alert">{{ errorLimpieza() }}</p>
+      }
+      <button type="button" class="pp-btn peligro" [disabled]="limpiando()" (click)="limpiarDespacho()">
+        {{ limpiando() ? 'Borrando…' : 'Borrar datos de prueba de Despacho' }}
+      </button>
+    </section>
   `,
   styles: `
+    .limpieza {
+      margin-top: 1.5rem;
+      border-left: 5px solid var(--pp-error);
+    }
+    .limpieza h2 {
+      font-size: 1.05rem;
+      color: var(--pp-error);
+    }
+    .peligro {
+      background: var(--pp-error);
+      border-color: var(--pp-error);
+    }
     .encabezado {
       margin-bottom: 1.25rem;
     }
@@ -121,8 +151,47 @@ export class AdminInicioComponent {
 
   protected readonly registros = signal<RegistroAuditoria[]>([]);
   protected readonly error = signal<string | null>(null);
+  protected readonly limpiando = signal(false);
+  protected readonly resultadoLimpieza = signal<string | null>(null);
+  protected readonly errorLimpieza = signal<string | null>(null);
 
   constructor() {
+    this.cargarAuditoria();
+  }
+
+  limpiarDespacho(): void {
+    const texto = prompt(
+      'Se borrarán TODAS las planillas, guías y pagos de Despacho (los clientes, repartidores y precios se conservan).\n\n' +
+        'Escriba BORRAR para confirmar:',
+    );
+    if (texto === null) return;
+    if (texto.trim() !== 'BORRAR') {
+      this.errorLimpieza.set('No se borró nada: debe escribir BORRAR en mayúsculas.');
+      return;
+    }
+    this.limpiando.set(true);
+    this.errorLimpieza.set(null);
+    this.resultadoLimpieza.set(null);
+    this.http
+      .post<{ planillas: number; lineas: number; guias: number; pagos: number; noPagos: number }>('/api/mantencion/limpiar-despacho', {
+        confirmacion: 'BORRAR',
+      })
+      .subscribe({
+        next: (r) => {
+          this.limpiando.set(false);
+          this.resultadoLimpieza.set(
+            `Listo: se borraron ${r.planillas} planilla(s), ${r.lineas} línea(s), ${r.guias} guía(s) y ${r.pagos + r.noPagos} registro(s) de pago.`,
+          );
+          this.cargarAuditoria();
+        },
+        error: (e) => {
+          this.limpiando.set(false);
+          this.errorLimpieza.set(mensajeError(e, 'No se pudo borrar.'));
+        },
+      });
+  }
+
+  private cargarAuditoria(): void {
     this.http
       .get<PaginaAuditoria>('/api/auditoria', { params: { soloEventos: true, porPagina: 10 } })
       .subscribe({
