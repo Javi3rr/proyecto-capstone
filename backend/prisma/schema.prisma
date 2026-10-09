@@ -79,6 +79,8 @@ model Repartidor {
   nombre   String   @db.VarChar(120)
   rut      String?  @unique @db.VarChar(12)
   patente  String?  @db.VarChar(10)
+  /// Paga habitual por día trabajado (se puede cambiar cada día en la Entrega del día)
+  pagaDiaria Decimal @default(20000) @map("paga_diaria") @db.Decimal(10, 2)
   activo   Boolean  @default(true)
   creadoEn DateTime @default(now()) @map("creado_en")
   actualizadoEn DateTime @updatedAt @map("actualizado_en")
@@ -91,6 +93,7 @@ model Repartidor {
   despachos      Despacho[]
   guias          Guia[]
   pagos          Pago[]
+  pagasDia       PagaRepartidor[]
 
   @@map("repartidores")
 }
@@ -237,6 +240,20 @@ model Pago {
   /// Un registro de pago por cliente y día de cuadre
   @@unique([clienteId, fecha])
   @@map("pagos")
+}
+
+/// Paga del repartidor en un día: se descuenta de lo que entrega
+model PagaRepartidor {
+  id           Int        @id @default(autoincrement())
+  fecha        DateTime   @db.Date
+  repartidorId Int        @map("repartidor_id")
+  repartidor   Repartidor @relation(fields: [repartidorId], references: [id])
+  monto        Decimal    @db.Decimal(10, 2)
+  creadoPorId  Int?       @map("creado_por_id")
+  actualizadoEn DateTime  @default(now()) @updatedAt @map("actualizado_en")
+
+  @@unique([fecha, repartidorId])
+  @@map("pagas_repartidor")
 }
 
 /// Excepción de cobro: el cliente no pagó ese día. Lo que debía pasa al siguiente día en que reciba pan.

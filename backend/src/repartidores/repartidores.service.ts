@@ -32,6 +32,7 @@ export class RepartidoresService {
           nombre: dto.nombre,
           rut: this.prepararRut(dto.rut),
           patente: dto.patente?.toUpperCase() ?? null,
+          pagaDiaria: dto.pagaDiaria ?? undefined,
         },
       });
       await this.audit.registrarCambio(usuarioId, 'CREAR', 'repartidor', creado.id, null, creado);
@@ -56,6 +57,7 @@ export class RepartidoresService {
           nombre: dto.nombre ?? undefined,
           rut: dto.rut === undefined ? undefined : this.prepararRut(dto.rut),
           patente: dto.patente === undefined ? undefined : (dto.patente?.toUpperCase() ?? null),
+          pagaDiaria: dto.pagaDiaria,
           activo: dto.activo,
         },
       });

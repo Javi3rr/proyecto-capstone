@@ -199,19 +199,26 @@ export class EntregaService {
 
     const repartidores = await this.prisma.repartidor.findMany({
       where: { id: { in: [...repartidoresUsados, ...(jornadaHoy?.repartidorUnicoId ? [jornadaHoy.repartidorUnicoId] : [])] } },
-      select: { id: true, nombre: true, patente: true },
+      select: { id: true, nombre: true, patente: true, pagaDiaria: true },
       orderBy: { nombre: 'asc' },
     });
+    const pagasGuardadas = await this.prisma.pagaRepartidor.findMany({ where: { fecha: fechaD } });
+    const pagaDe = new Map<number, number>(pagasGuardadas.map((p) => [p.repartidorId, Math.round(Number(p.monto))]));
     const sumar = (filas: FilaEntrega[], campo: 'kg' | 'monto') => kg3(filas.reduce((t, f) => t + f[campo], 0));
 
     const porRepartidor = repartidores
       .filter((r) => bloques.has(r.id))
-      .map((r: RepartidorRef) => {
+      .map((r) => {
         const b = bloques.get(r.id)!;
+        const montoEntregar = sumar(b.cobros, 'monto');
+        // Paga del día: la anotada para esta fecha o, si no hay, la habitual (solo si repartió hoy)
+        const guardada = pagaDe.get(r.id);
+        const paga = guardada ?? (b.kgRepartidos > 0 ? Math.round(Number(r.pagaDiaria)) : 0);
+        const repartidor: RepartidorRef = { id: r.id, nombre: r.nombre, patente: r.patente };
         const delDia = b.cobros.filter((f) => f.modalidad !== 'PAGO_DIA_SIGUIENTE');
         const diaAnterior = b.cobros.filter((f) => f.modalidad === 'PAGO_DIA_SIGUIENTE');
         return {
-          repartidor: r,
+          repartidor,
           /** Clientes de reparto que pagaron hoy (incluye lo que arrastraban de días en que no pagaron) */
           cobrosDelDia: delDia,
           /** Clientes de pago día siguiente que pagaron hoy lo de su último día (o días) con pan */
@@ -223,15 +230,23 @@ export class EntregaService {
             kgRepartidos: b.kgRepartidos,
             kgDelDia: sumar(delDia, 'kg'),
             kgDiaAnterior: sumar(diaAnterior, 'kg'),
-            /** Lo que debe entregar en dinero */
-            montoEntregar: sumar(b.cobros, 'monto'),
+            /** Lo cobrado a clientes */
+            montoEntregar,
             montoNoPagado: sumar(b.noPagaron, 'monto'),
+            /** Paga del repartidor ese día (se descuenta) */
+            paga,
+            /** false = es la paga habitual sugerida, aún no confirmada para este día */
+            pagaGuardada: guardada !== undefined,
+            /** Lo que efectivamente entrega: cobrado − paga */
+            netoEntregar: montoEntregar - paga,
           },
         };
       });
 
     const repartidorUnico = jornadaHoy?.repartidorUnicoId
-      ? (repartidores.find((r) => r.id === jornadaHoy.repartidorUnicoId) ?? null)
+      ? (porRepartidor.find((p) => p.repartidor.id === jornadaHoy.repartidorUnicoId)?.repartidor ??
+        repartidores.map((r) => ({ id: r.id, nombre: r.nombre, patente: r.patente })).find((r) => r.id === jornadaHoy.repartidorUnicoId) ??
+        null)
       : null;
     const totalHoy = (cargosPorCliente: Map<number, Cargo[]>) => {
       let kg = 0;
@@ -267,9 +282,35 @@ export class EntregaService {
       totalesDia: {
         ...totalHoy(cargosPorCliente),
         montoEntregar: sumar([...porRepartidor.flatMap((r) => [...r.cobrosDelDia, ...r.cobrosDiaAnterior]), ...presenciales.cobros], 'monto'),
+        pagas: porRepartidor.reduce((t, r) => t + r.totales.paga, 0),
+        netoEntregar:
+          sumar([...porRepartidor.flatMap((r) => [...r.cobrosDelDia, ...r.cobrosDiaAnterior]), ...presenciales.cobros], 'monto') -
+          porRepartidor.reduce((t, r) => t + r.totales.paga, 0),
         sinGuia: despachosHoy.filter((d) => d.guias.length === 0).length,
       },
     };
+  }
+
+  /** Paga del repartidor en un día (se descuenta de lo que entrega) */
+  async registrarPaga(fecha: string, repartidorId: number, monto: number, usuarioId?: number) {
+    const r = await this.prisma.repartidor.findUnique({ where: { id: repartidorId }, select: { id: true, nombre: true } });
+    if (!r) throw new NotFoundException('Repartidor no encontrado');
+    const where = { fecha_repartidorId: { fecha: fechaDesdeISO(fecha), repartidorId } };
+    const antes = await this.prisma.pagaRepartidor.findUnique({ where });
+    const paga = await this.prisma.pagaRepartidor.upsert({
+      where,
+      update: { monto, creadoPorId: usuarioId ?? null },
+      create: { fecha: fechaDesdeISO(fecha), repartidorId, monto, creadoPorId: usuarioId ?? null },
+    });
+    await this.audit.registrarCambio(
+      usuarioId,
+      antes ? 'ACTUALIZAR' : 'CREAR',
+      'paga-repartidor',
+      paga.id,
+      antes ? { repartidor: r.nombre, fecha, monto: Number(antes.monto) } : null,
+      { repartidor: r.nombre, fecha, monto },
+    );
+    return { repartidorId, fecha, monto };
   }
 
   /** El cliente recibió pan ese día pero no pagó: lo que debía pasa a su próximo día con pan */

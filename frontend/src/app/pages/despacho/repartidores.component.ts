@@ -1,3 +1,4 @@
+import { CurrencyPipe } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { mensajeError } from '../../core/errores';
@@ -6,10 +7,10 @@ import { DespachoService } from './despacho.service';
 
 type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; repartidor: Repartidor };
 
-/** [DESPACHO] Gestionar los repartidores para asociarlos a sus rutas y cuadres */
+/** [DESPACHO] Gestionar los repartidores para asociarlos a sus rutas, su entrega del día y su paga */
 @Component({
   selector: 'app-repartidores',
-  imports: [ReactiveFormsModule],
+  imports: [ReactiveFormsModule, CurrencyPipe],
   template: `
     <header class="encabezado">
       <div>
@@ -43,6 +44,10 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; repartidor: Repartidor };
               <label for="patente">Patente del furgón</label>
               <input id="patente" formControlName="patente" placeholder="ABCD12" maxlength="10" />
             </div>
+            <div class="pp-campo">
+              <label for="paga">Paga habitual por día ($)</label>
+              <input id="paga" type="number" min="0" step="500" formControlName="pagaDiaria" />
+            </div>
           </div>
           <div class="acciones">
             <button type="button" class="pp-btn pp-btn--secundario" (click)="edicion.set(null)">Cancelar</button>
@@ -63,6 +68,7 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; repartidor: Repartidor };
               <th>Nombre</th>
               <th>RUT</th>
               <th>Patente</th>
+              <th>Paga diaria</th>
               <th>Clientes activos</th>
               <th>Estado</th>
               <th></th>
@@ -74,6 +80,7 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; repartidor: Repartidor };
                 <td><strong>{{ r.nombre }}</strong></td>
                 <td>{{ r.rut ?? '—' }}</td>
                 <td>{{ r.patente ?? '—' }}</td>
+                <td>{{ r.pagaDiaria | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</td>
                 <td>{{ r._count?.clientes ?? 0 }}</td>
                 <td>{{ r.activo ? 'Activo' : 'Desactivado' }}</td>
                 <td class="botones">
@@ -86,7 +93,7 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; repartidor: Repartidor };
                 </td>
               </tr>
             } @empty {
-              <tr><td colspan="6" class="pp-texto-suave">{{ cargando() ? 'Cargando…' : 'No hay repartidores.' }}</td></tr>
+              <tr><td colspan="7" class="pp-texto-suave">{{ cargando() ? 'Cargando…' : 'No hay repartidores.' }}</td></tr>
             }
           </tbody>
         </table>
@@ -164,6 +171,7 @@ export class RepartidoresComponent {
     nombre: this.fb.nonNullable.control('', [Validators.required, Validators.maxLength(120)]),
     rut: this.fb.control<string | null>(null),
     patente: this.fb.control<string | null>(null),
+    pagaDiaria: this.fb.control<number | null>(20000, [Validators.required, Validators.min(0)]),
   });
 
   constructor() {
@@ -186,13 +194,13 @@ export class RepartidoresComponent {
 
   abrirNuevo(): void {
     this.limpiarAvisos();
-    this.form.reset({ nombre: '', rut: null, patente: null });
+    this.form.reset({ nombre: '', rut: null, patente: null, pagaDiaria: 20000 });
     this.edicion.set({ tipo: 'nuevo' });
   }
 
   abrirEditar(r: Repartidor): void {
     this.limpiarAvisos();
-    this.form.reset({ nombre: r.nombre, rut: r.rut, patente: r.patente });
+    this.form.reset({ nombre: r.nombre, rut: r.rut, patente: r.patente, pagaDiaria: Number(r.pagaDiaria) });
     this.edicion.set({ tipo: 'editar', repartidor: r });
   }
 
@@ -201,7 +209,7 @@ export class RepartidoresComponent {
     if (!ed) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.error.set('El nombre es obligatorio.');
+      this.error.set('El nombre es obligatorio y la paga no puede ser negativa.');
       return;
     }
     const v = this.form.getRawValue();
@@ -209,6 +217,7 @@ export class RepartidoresComponent {
       nombre: v.nombre.trim(),
       rut: v.rut?.trim() || null,
       patente: v.patente?.trim() || null,
+      pagaDiaria: Math.round(v.pagaDiaria ?? 0),
     };
 
     this.guardando.set(true);

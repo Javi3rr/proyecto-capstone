@@ -11,17 +11,18 @@ export class MantencionService {
 
   /**
    * Deja Despacho en blanco para empezar a usarlo en serio: borra planillas, guías,
-   * marcas de "no pagó" y pagos antiguos. Conserva clientes, repartidores y precios.
+   * marcas de "no pagó", pagas de repartidores y pagos antiguos. Conserva clientes, repartidores y precios.
    * La numeración de guías vuelve a partir en N° 1. La auditoría no se borra.
    */
   async limpiarDespacho(usuarioId?: number) {
     const borrados = await this.prisma.$transaction(async (tx) => {
       const noPagos = await tx.noPago.deleteMany({});
+      await tx.pagaRepartidor.deleteMany({});
       const pagos = await tx.pago.deleteMany({});
       const guias = await tx.guia.deleteMany({});
       const despachos = await tx.despacho.deleteMany({});
       const jornadas = await tx.jornadaDespacho.deleteMany({});
-      for (const tabla of ['guias', 'despachos', 'jornadas_despacho', 'pagos', 'no_pagos']) {
+      for (const tabla of ['guias', 'despachos', 'jornadas_despacho', 'pagos', 'no_pagos', 'pagas_repartidor']) {
         await tx.$executeRawUnsafe(`SELECT setval(pg_get_serial_sequence('"${tabla}"', 'id'), 1, false)`);
       }
       return {

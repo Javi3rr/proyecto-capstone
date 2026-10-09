@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 import { textoLimpio } from '../../common/utils';
 
 export class CrearRepartidorDto {
@@ -21,6 +21,13 @@ export class CrearRepartidorDto {
   @IsString()
   @MaxLength(10)
   patente?: string | null;
+
+  /** Paga habitual por día trabajado, en pesos */
+  @IsOptional()
+  @IsInt({ message: 'La paga debe ser un monto entero en pesos' })
+  @Min(0)
+  @Max(1_000_000)
+  pagaDiaria?: number;
 }
 
 export class ActualizarRepartidorDto {
@@ -42,6 +49,13 @@ export class ActualizarRepartidorDto {
   @IsString()
   @MaxLength(10)
   patente?: string | null;
+
+  /** Paga habitual por día trabajado, en pesos */
+  @IsOptional()
+  @IsInt({ message: 'La paga debe ser un monto entero en pesos' })
+  @Min(0)
+  @Max(1_000_000)
+  pagaDiaria?: number;
 
   @IsOptional()
   @IsBoolean()

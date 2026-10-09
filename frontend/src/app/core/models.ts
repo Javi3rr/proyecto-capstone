@@ -57,6 +57,8 @@ export interface Repartidor {
   nombre: string;
   rut: string | null;
   patente: string | null;
+  /** Paga habitual por día trabajado */
+  pagaDiaria: Decimal;
   activo: boolean;
   _count?: { clientes: number };
 }
@@ -65,6 +67,7 @@ export interface RepartidorForm {
   nombre: string;
   rut: string | null;
   patente: string | null;
+  pagaDiaria: number;
 }
 
 export interface PrecioKg {
@@ -225,7 +228,20 @@ export interface EntregaRepartidor {
   cobrosDiaAnterior: FilaEntrega[];
   noPagaron: FilaEntrega[];
   pagaDespues: FilaEntrega[];
-  totales: { kgRepartidos: number; kgDelDia: number; kgDiaAnterior: number; montoEntregar: number; montoNoPagado: number };
+  totales: {
+    kgRepartidos: number;
+    kgDelDia: number;
+    kgDiaAnterior: number;
+    /** Lo cobrado a clientes */
+    montoEntregar: number;
+    montoNoPagado: number;
+    /** Paga del repartidor ese día (se descuenta) */
+    paga: number;
+    /** false = paga habitual sugerida, aún no confirmada para el día */
+    pagaGuardada: boolean;
+    /** Cobrado − paga */
+    netoEntregar: number;
+  };
 }
 
 export interface PendienteCobro {
@@ -251,7 +267,7 @@ export interface Entrega {
   };
   pendientes: PendienteCobro[];
   sinRepartidor: string[];
-  totalesDia: { kg: number; monto: number; montoEntregar: number; sinGuia: number };
+  totalesDia: { kg: number; monto: number; montoEntregar: number; pagas: number; netoEntregar: number; sinGuia: number };
 }
 
 // ---------- Reportes ----------
