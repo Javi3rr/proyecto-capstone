@@ -94,7 +94,7 @@ export class FacturasService {
    * (hay productos que aún no están en el catálogo). Solo las líneas con producto suman stock.
    */
   async crear(dto: CrearFacturaDto, archivo: ArchivoSubido | undefined, usuarioId?: number) {
-    const tipo = this.validarArchivo(archivo);
+    const { archivo: adjunto, tipo } = this.validarArchivo(archivo);
     if (dto.fecha > hoySantiago()) throw new BadRequestException('La fecha de la factura no puede ser futura');
 
     const proveedor = await this.prisma.proveedor.findUnique({ where: { id: dto.proveedorId } });
@@ -158,10 +158,10 @@ export class FacturasService {
           });
         }
         // El archivo se guarda dentro de la transacción: si falla, la factura no queda registrada
-        const relativo = await this.guardarArchivo(f.id, archivo!, tipo.ext);
+        const relativo = await this.guardarArchivo(f.id, adjunto, tipo.ext);
         return tx.factura.update({
           where: { id: f.id },
-          data: { archivoPath: relativo, archivoNombre: archivo!.originalname.slice(0, 255), archivoTipo: tipo.mime },
+          data: { archivoPath: relativo, archivoNombre: adjunto.originalname.slice(0, 255), archivoTipo: tipo.mime },
         });
       });
       const completa = await this.obtener(factura.id);
@@ -176,12 +176,12 @@ export class FacturasService {
   }
 
   /** Valida que venga un archivo permitido (por su contenido, no por la extensión) */
-  private validarArchivo(archivo: ArchivoSubido | undefined) {
+  private validarArchivo(archivo: ArchivoSubido | undefined): { archivo: ArchivoSubido; tipo: { mime: string; ext: string } } {
     if (!archivo) throw new BadRequestException('Adjunte la foto o PDF de la factura (es obligatoria)');
     if (archivo.size > MAX_ARCHIVO_BYTES) throw new BadRequestException('El archivo supera los 10 MB');
     const tipo = tipoReal(archivo.buffer);
     if (!tipo) throw new BadRequestException('Formato no permitido: use PDF, JPG, PNG o WEBP');
-    return tipo;
+    return { archivo, tipo };
   }
 
   private async guardarArchivo(facturaId: number, archivo: ArchivoSubido, ext: string): Promise<string> {
@@ -223,14 +223,14 @@ export class FacturasService {
   }
 
   /** Guarda (o reemplaza) la foto o PDF de la factura en el volumen de uploads */
-  async adjuntar(id: number, archivo: ArchivoSubido | undefined, usuarioId?: number) {
-    const tipo = this.validarArchivo(archivo);
+  async adjuntar(id: number, archivoRecibido: ArchivoSubido | undefined, usuarioId?: number) {
+    const { archivo, tipo } = this.validarArchivo(archivoRecibido);
 
     const antes = await this.obtener(id);
     if (antes.estado === 'ANULADA') throw new BadRequestException('No se pueden adjuntar archivos a una factura anulada');
 
     // El archivo anterior se conserva en disco (trazabilidad); solo cambia la referencia
-    const relativo = await this.guardarArchivo(id, archivo!, tipo.ext);
+    const relativo = await this.guardarArchivo(id, archivo, tipo.ext);
 
     await this.prisma.factura.update({
       where: { id },
