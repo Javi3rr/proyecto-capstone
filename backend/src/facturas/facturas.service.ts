@@ -37,7 +37,9 @@ const INCLUDE_LISTA = {
 
 /**
  * Facturas de mercadería.
- *  - Registrar una factura suma al stock cada línea (movimiento ENTRADA_FACTURA).
+ *  - La foto o PDF es obligatoria. Las líneas son opcionales.
+ *  - Cada línea con producto del catálogo suma al stock (movimiento ENTRADA_FACTURA);
+ *    las líneas de productos aún no registrados solo quedan como detalle.
  *  - No se edita: se anula con motivo y la anulación descuenta lo que había sumado (ANULACION_FACTURA).
  *  - No se puede registrar dos veces la misma factura (proveedor + N°).
  */
@@ -87,22 +89,44 @@ export class FacturasService {
     return { ...f, creadoPor: nombre(f.creadoPorId), anuladaPor: nombre(f.anuladaPorId) };
   }
 
-  async crear(dto: CrearFacturaDto, usuarioId?: number) {
+  /**
+   * Registra una factura. La foto o PDF es obligatoria; las líneas son opcionales
+   * (hay productos que aún no están en el catálogo). Solo las líneas con producto suman stock.
+   */
+  async crear(dto: CrearFacturaDto, archivo: ArchivoSubido | undefined, usuarioId?: number) {
+    const { archivo: adjunto, tipo } = this.validarArchivo(archivo);
     if (dto.fecha > hoySantiago()) throw new BadRequestException('La fecha de la factura no puede ser futura');
 
     const proveedor = await this.prisma.proveedor.findUnique({ where: { id: dto.proveedorId } });
     if (!proveedor || !proveedor.activo) throw new BadRequestException('Proveedor no encontrado o desactivado');
 
-    const ids = [...new Set(dto.lineas.map((l) => l.productoId))];
-    const productos = await this.prisma.producto.findMany({ where: { id: { in: ids }, activo: true }, select: { id: true } });
-    if (productos.length !== ids.length) throw new BadRequestException('Una o más líneas tienen un producto inexistente o desactivado');
+    const entrada = dto.lineas ?? [];
+    entrada.forEach((l, i) => {
+      if (!l.productoId && !l.descripcion) {
+        throw new BadRequestException(`Línea ${i + 1}: elija un producto o escriba su descripción`);
+      }
+    });
+    const ids = [...new Set(entrada.map((l) => l.productoId).filter((x): x is number => !!x))];
+    if (ids.length > 0) {
+      const productos = await this.prisma.producto.findMany({ where: { id: { in: ids }, activo: true }, select: { id: true } });
+      if (productos.length !== ids.length) throw new BadRequestException('Una o más líneas tienen un producto inexistente o desactivado');
+    }
 
-    const lineas = dto.lineas.map((l) => {
+    const lineas = entrada.map((l) => {
       const cantidad = new Prisma.Decimal(l.cantidad);
       const costo = new Prisma.Decimal(l.costoUnitario);
-      return { productoId: l.productoId, cantidad, costoUnitario: costo, subtotal: cantidad.mul(costo).toDecimalPlaces(0) };
+      return {
+        productoId: l.productoId || null,
+        descripcion: l.productoId ? null : (l.descripcion ?? null),
+        cantidad,
+        costoUnitario: costo,
+        subtotal: cantidad.mul(costo).toDecimalPlaces(0),
+      };
     });
-    const neto = lineas.reduce((t, l) => t.plus(l.subtotal), new Prisma.Decimal(0));
+    const neto =
+      lineas.length > 0
+        ? lineas.reduce((t, l) => t.plus(l.subtotal), new Prisma.Decimal(0))
+        : new Prisma.Decimal(dto.neto ?? 0);
     const iva = dto.iva !== undefined ? new Prisma.Decimal(dto.iva) : neto.mul(TASA_IVA).toDecimalPlaces(0);
     const total = neto.plus(iva);
 
@@ -122,6 +146,7 @@ export class FacturasService {
           },
         });
         for (const l of lineas) {
+          if (!l.productoId) continue;
           await registrarMovimiento(tx, {
             productoId: l.productoId,
             tipo: 'ENTRADA_FACTURA',
@@ -132,7 +157,12 @@ export class FacturasService {
             usuarioId,
           });
         }
-        return f;
+        // El archivo se guarda dentro de la transacción: si falla, la factura no queda registrada
+        const relativo = await this.guardarArchivo(f.id, adjunto, tipo.ext);
+        return tx.factura.update({
+          where: { id: f.id },
+          data: { archivoPath: relativo, archivoNombre: adjunto.originalname.slice(0, 255), archivoTipo: tipo.mime },
+        });
       });
       const completa = await this.obtener(factura.id);
       await this.audit.registrarCambio(usuarioId, 'CREAR', 'factura', factura.id, null, completa);
@@ -143,6 +173,22 @@ export class FacturasService {
       }
       throw e;
     }
+  }
+
+  /** Valida que venga un archivo permitido (por su contenido, no por la extensión) */
+  private validarArchivo(archivo: ArchivoSubido | undefined): { archivo: ArchivoSubido; tipo: { mime: string; ext: string } } {
+    if (!archivo) throw new BadRequestException('Adjunte la foto o PDF de la factura (es obligatoria)');
+    if (archivo.size > MAX_ARCHIVO_BYTES) throw new BadRequestException('El archivo supera los 10 MB');
+    const tipo = tipoReal(archivo.buffer);
+    if (!tipo) throw new BadRequestException('Formato no permitido: use PDF, JPG, PNG o WEBP');
+    return { archivo, tipo };
+  }
+
+  private async guardarArchivo(facturaId: number, archivo: ArchivoSubido, ext: string): Promise<string> {
+    const relativo = join('facturas', `${facturaId}-${Date.now()}.${ext}`);
+    await mkdir(join(this.dirUploads, 'facturas'), { recursive: true });
+    await writeFile(join(this.dirUploads, relativo), archivo.buffer);
+    return relativo;
   }
 
   /** Anula la factura y revierte el stock que había sumado (sin borrar el historial) */
@@ -158,6 +204,7 @@ export class FacturasService {
       });
       if (r.count === 0) throw new ConflictException('La factura ya está anulada');
       for (const d of antes.detalles) {
+        if (!d.productoId) continue; // línea sin producto del catálogo: no había sumado stock
         await registrarMovimiento(tx, {
           productoId: d.productoId,
           tipo: 'ANULACION_FACTURA',
@@ -176,19 +223,14 @@ export class FacturasService {
   }
 
   /** Guarda (o reemplaza) la foto o PDF de la factura en el volumen de uploads */
-  async adjuntar(id: number, archivo: ArchivoSubido | undefined, usuarioId?: number) {
-    if (!archivo) throw new BadRequestException('Seleccione un archivo (PDF, JPG, PNG o WEBP)');
-    if (archivo.size > MAX_ARCHIVO_BYTES) throw new BadRequestException('El archivo supera los 10 MB');
-    const tipo = tipoReal(archivo.buffer);
-    if (!tipo) throw new BadRequestException('Formato no permitido: use PDF, JPG, PNG o WEBP');
+  async adjuntar(id: number, archivoRecibido: ArchivoSubido | undefined, usuarioId?: number) {
+    const { archivo, tipo } = this.validarArchivo(archivoRecibido);
 
     const antes = await this.obtener(id);
     if (antes.estado === 'ANULADA') throw new BadRequestException('No se pueden adjuntar archivos a una factura anulada');
 
     // El archivo anterior se conserva en disco (trazabilidad); solo cambia la referencia
-    const relativo = join('facturas', `${id}-${Date.now()}.${tipo.ext}`);
-    await mkdir(join(this.dirUploads, 'facturas'), { recursive: true });
-    await writeFile(join(this.dirUploads, relativo), archivo.buffer);
+    const relativo = await this.guardarArchivo(id, archivo, tipo.ext);
 
     await this.prisma.factura.update({
       where: { id },

@@ -3,12 +3,15 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { mensajeError } from '../../core/errores';
 import { buscarPorCodigo } from '../../core/barras';
-import { CategoriaProducto, NOMBRE_CATEGORIA, NuevaFactura, Producto, Proveedor } from '../../core/models';
+import { NuevaFactura, Producto, Proveedor } from '../../core/models';
 import { hoyISO } from '../despacho/despacho.service';
 import { MesonService } from './meson.service';
 
 interface LineaForm {
   clave: number;
+  /** Lo escrito en el buscador de producto */
+  texto: string;
+  /** Producto del catálogo elegido (null = no registrado o aún sin elegir) */
   productoId: number | null;
   cantidad: number | null;
   costoUnitario: number | null;
@@ -27,8 +30,8 @@ const MAX_MB = 10;
         <a routerLink="/meson/facturas" class="volver">← Facturas</a>
         <h1>Registrar factura</h1>
         <p class="pp-texto-suave">
-          Ingrese cada producto con su cantidad y costo unitario <strong>neto</strong> (sin IVA), tal como viene en la factura.
-          Al guardar, la mercadería se suma al stock.
+          Solo la <strong>foto o PDF</strong> es obligatoria, junto con proveedor, N° y fecha. El detalle de productos es opcional:
+          los productos del catálogo suman stock; los aún no registrados quedan anotados sin mover stock.
         </p>
       </div>
     </header>
@@ -68,7 +71,12 @@ const MAX_MB = 10;
     </section>
 
     <section class="pp-card">
-      <h2>Detalle</h2>
+      <h2>Detalle <small class="pp-texto-suave">(opcional)</small></h2>
+      <datalist id="lista-productos">
+        @for (p of productos(); track p.id) {
+          <option [value]="etiqueta(p)"></option>
+        }
+      </datalist>
       <div class="escaner">
         <label for="escaner">Escanear código de barras o escribir el PLU</label>
         <input
@@ -107,19 +115,19 @@ const MAX_MB = 10;
             @for (l of lineas(); track l.clave; let i = $index) {
               <tr>
                 <td>
-                  <select
-                    (change)="actualizar(i, 'productoId', $any($event.target).value)"
+                  <input
+                    class="buscador"
+                    list="lista-productos"
+                    autocomplete="off"
+                    maxlength="150"
+                    placeholder="Escriba parte del nombre o el PLU…"
+                    [value]="l.texto"
+                    (input)="escribirProducto(i, $any($event.target).value)"
                     [attr.aria-label]="'Producto línea ' + (i + 1)"
-                  >
-                    <option value="" [selected]="l.productoId === null">Seleccione…</option>
-                    @for (g of grupos(); track g.categoria) {
-                      <optgroup [label]="g.nombre">
-                        @for (p of g.productos; track p.id) {
-                          <option [value]="p.id" [selected]="l.productoId === p.id">{{ p.plu }} · {{ p.nombre }}</option>
-                        }
-                      </optgroup>
-                    }
-                  </select>
+                  />
+                  @if (l.texto.trim() && l.productoId === null) {
+                    <small class="no-registrado">No está en el catálogo: se anota en la factura, pero no suma stock.</small>
+                  }
                 </td>
                 <td class="num">
                   <input
@@ -146,7 +154,7 @@ const MAX_MB = 10;
                 </td>
                 <td class="num">{{ subtotal(l) | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</td>
                 <td class="derecha">
-                  <button type="button" class="pp-btn pp-btn--secundario pp-btn--chico" [disabled]="lineas().length === 1" (click)="quitar(i)" title="Quitar línea">✕</button>
+                  <button type="button" class="pp-btn pp-btn--secundario pp-btn--chico" (click)="quitar(i)" title="Quitar línea">✕</button>
                 </td>
               </tr>
             }
@@ -154,12 +162,25 @@ const MAX_MB = 10;
         </table>
       </div>
       <button type="button" class="pp-btn pp-btn--secundario pp-btn--chico agregar" (click)="agregarLinea()">+ Agregar línea</button>
-      @if (productos().length === 0 && !cargando()) {
-        <p class="pp-texto-suave">No hay productos activos. <a routerLink="/meson/productos">Créelos aquí</a> antes de registrar la factura.</p>
-      }
 
       <div class="totales">
-        <div><span>Neto</span><strong>{{ neto() | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong></div>
+        <div>
+          <span>Neto</span>
+          @if (sinLineas()) {
+            <input
+              type="number"
+              min="0"
+              step="1"
+              class="iva"
+              placeholder="Opcional"
+              [value]="netoManual() ?? ''"
+              (input)="netoManual.set(numOrNull($any($event.target).value))"
+              aria-label="Neto de la factura"
+            />
+          } @else {
+            <strong>{{ neto() | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong>
+          }
+        </div>
         <div>
           <span>
             IVA
@@ -173,23 +194,25 @@ const MAX_MB = 10;
         </div>
         <div class="total"><span>Total</span><strong>{{ total() | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</strong></div>
       </div>
-      <p class="pp-texto-suave nota">Compare el total con el de la factura en papel. Si tiene productos exentos, desmarque "19 % automático" e ingrese el IVA.</p>
+      <p class="pp-texto-suave nota">
+        Sin detalle de productos puede escribir el neto directamente. Si la factura tiene productos exentos, desmarque "19 % automático" e ingrese el IVA.
+      </p>
     </section>
 
     <section class="pp-card">
-      <h2>Foto o PDF de la factura</h2>
+      <h2>Foto o PDF de la factura *</h2>
       <input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" (change)="elegirArchivo($event)" />
       @if (archivo(); as a) {
         <p class="archivo">{{ a.name }} · {{ a.size / 1024 / 1024 | number: '1.1-1' }} MB</p>
       } @else {
-        <p class="pp-texto-suave nota">Opcional ahora; también puede adjuntarse después. PDF, JPG, PNG o WEBP, hasta {{ maxMb }} MB.</p>
+        <p class="pp-texto-suave nota izq">Obligatoria. PDF, JPG, PNG o WEBP, hasta {{ maxMb }} MB. Desde el celular puede sacar la foto directamente.</p>
       }
     </section>
 
     <div class="acciones">
       <a routerLink="/meson/facturas" class="pp-btn pp-btn--secundario">Cancelar</a>
       <button type="button" class="pp-btn" [disabled]="guardando()" (click)="guardar()">
-        {{ guardando() ? 'Guardando…' : 'Registrar factura y sumar al stock' }}
+        {{ guardando() ? 'Guardando…' : 'Registrar factura' }}
       </button>
     </div>
   `,
@@ -270,8 +293,18 @@ const MAX_MB = 10;
       border-radius: 6px;
       font: 0.9rem var(--pp-fuente);
     }
-    .lineas select {
+    .lineas .buscador {
       width: 100%;
+      text-align: left;
+    }
+    .no-registrado {
+      display: block;
+      margin-top: 0.15rem;
+      font-size: 0.75rem;
+      color: var(--pp-alerta);
+    }
+    .nota.izq {
+      text-align: left;
     }
     .lineas input,
     .iva {
@@ -363,12 +396,18 @@ export class FacturaNuevaComponent {
   protected readonly ivaManual = signal<number | null>(null);
   protected readonly archivo = signal<File | null>(null);
 
-  protected readonly grupos = computed(() =>
-    (Object.keys(NOMBRE_CATEGORIA) as CategoriaProducto[])
-      .map((c) => ({ categoria: c, nombre: NOMBRE_CATEGORIA[c], productos: this.productos().filter((p) => p.categoria === c) }))
-      .filter((g) => g.productos.length > 0),
+  protected readonly netoManual = signal<number | null>(null);
+
+  /** Etiqueta de cada producto en el buscador → producto */
+  private readonly porEtiqueta = computed(() => new Map(this.productos().map((p) => [this.etiqueta(p), p])));
+  /** Líneas con algo escrito */
+  protected readonly usadas = computed(() =>
+    this.lineas().filter((l) => l.texto.trim() !== '' || l.cantidad !== null || l.costoUnitario !== null),
   );
-  protected readonly neto = computed(() => this.lineas().reduce((t, l) => t + this.subtotal(l), 0));
+  protected readonly sinLineas = computed(() => this.usadas().length === 0);
+  protected readonly neto = computed(() =>
+    this.sinLineas() ? Math.round(this.netoManual() ?? 0) : this.lineas().reduce((t, l) => t + this.subtotal(l), 0),
+  );
   protected readonly iva = computed(() =>
     this.ivaAuto() ? Math.round(this.neto() * TASA_IVA) : Math.round(this.ivaManual() ?? 0),
   );
@@ -391,11 +430,21 @@ export class FacturaNuevaComponent {
     return l.cantidad && l.costoUnitario ? Math.round(l.cantidad * l.costoUnitario) : 0;
   }
 
+  protected etiqueta(p: Producto): string {
+    return `${p.plu} · ${p.nombre}`;
+  }
+
+  /** Buscador de producto: si coincide con uno del catálogo queda elegido; si no, es un producto no registrado */
+  escribirProducto(i: number, texto: string): void {
+    const p = this.porEtiqueta().get(texto.trim()) ?? null;
+    this.lineas.update((ls) => ls.map((l, j) => (j === i ? { ...l, texto, productoId: p?.id ?? null } : l)));
+  }
+
   protected unidadDe(l: LineaForm): string | null {
     return this.productos().find((p) => p.id === l.productoId)?.unidad ?? null;
   }
 
-  actualizar(i: number, campo: 'productoId' | 'cantidad' | 'costoUnitario', valor: string): void {
+  actualizar(i: number, campo: 'cantidad' | 'costoUnitario', valor: string): void {
     this.lineas.update((ls) => ls.map((l, j) => (j === i ? { ...l, [campo]: this.numOrNull(valor) } : l)));
   }
 
@@ -427,13 +476,15 @@ export class FacturaNuevaComponent {
   agregarProducto(productoId: number): void {
     this.opcionesEscaner.set([]);
     this.codigoEscaneado.set('');
+    const p = this.productos().find((x) => x.id === productoId);
+    const texto = p ? this.etiqueta(p) : '';
     const ls = this.lineas();
     const ultima = ls[ls.length - 1];
     // Reutiliza la última línea si está vacía
-    if (ultima && ultima.productoId === null && ultima.cantidad === null && ultima.costoUnitario === null) {
-      this.lineas.update((xs) => xs.map((l, j) => (j === xs.length - 1 ? { ...l, productoId } : l)));
+    if (ultima && !ultima.texto.trim() && ultima.cantidad === null && ultima.costoUnitario === null) {
+      this.lineas.update((xs) => xs.map((l, j) => (j === xs.length - 1 ? { ...l, texto, productoId } : l)));
     } else {
-      this.lineas.update((xs) => [...xs, { ...this.lineaVacia(), productoId }]);
+      this.lineas.update((xs) => [...xs, { ...this.lineaVacia(), texto, productoId }]);
     }
     // Lleva el cursor a la cantidad de esa línea
     setTimeout(() => {
@@ -474,28 +525,21 @@ export class FacturaNuevaComponent {
       proveedorId: this.proveedorId()!,
       numero: this.numero().trim(),
       fecha: this.fecha(),
+      ...(this.sinLineas() ? { neto: this.neto() } : {}),
       iva: this.iva(),
       observacion: this.observacion().trim() || null,
-      lineas: this.lineas()
-        .filter((l) => l.productoId !== null)
-        .map((l) => ({ productoId: l.productoId!, cantidad: l.cantidad!, costoUnitario: l.costoUnitario! })),
+      lineas: this.usadas().map((l) => ({
+        productoId: l.productoId,
+        descripcion: l.productoId ? null : l.texto.trim(),
+        cantidad: l.cantidad!,
+        costoUnitario: l.costoUnitario!,
+      })),
     };
 
     this.guardando.set(true);
     this.error.set(null);
-    this.api.crearFactura(datos).subscribe({
-      next: (f) => {
-        const archivo = this.archivo();
-        if (!archivo) {
-          this.irA(f.id, null);
-          return;
-        }
-        this.api.adjuntarArchivo(f.id, archivo).subscribe({
-          next: () => this.irA(f.id, null),
-          error: (e) =>
-            this.irA(f.id, `La factura se registró, pero el archivo no se pudo subir: ${mensajeError(e)}. Intente adjuntarlo nuevamente.`),
-        });
-      },
+    this.api.crearFactura(datos, this.archivo()!).subscribe({
+      next: (f) => this.irA(f.id, null),
       error: (e) => {
         this.guardando.set(false);
         this.error.set(mensajeError(e));
@@ -514,10 +558,9 @@ export class FacturaNuevaComponent {
     if (!this.numero().trim()) return 'Ingrese el N° de la factura.';
     if (!this.fecha()) return 'Ingrese la fecha de emisión.';
     if (this.fecha() > this.hoy) return 'La fecha de la factura no puede ser futura.';
-    const usadas = this.lineas().filter((l) => l.productoId !== null || l.cantidad !== null || l.costoUnitario !== null);
-    if (usadas.length === 0) return 'Agregue al menos un producto.';
-    for (const [i, l] of usadas.entries()) {
-      if (l.productoId === null) return `Línea ${i + 1}: seleccione el producto.`;
+    if (!this.archivo()) return 'Adjunte la foto o PDF de la factura (es obligatoria).';
+    for (const [i, l] of this.usadas().entries()) {
+      if (!l.texto.trim()) return `Línea ${i + 1}: escriba o elija el producto.`;
       if (!l.cantidad || l.cantidad <= 0) return `Línea ${i + 1}: la cantidad debe ser mayor que 0.`;
       if (l.costoUnitario === null || l.costoUnitario < 0) return `Línea ${i + 1}: ingrese el costo unitario.`;
       if (this.unidadDe(l) === 'UNIDAD' && !Number.isInteger(l.cantidad)) {
@@ -529,6 +572,6 @@ export class FacturaNuevaComponent {
   }
 
   private lineaVacia(): LineaForm {
-    return { clave: this.clave++, productoId: null, cantidad: null, costoUnitario: null };
+    return { clave: this.clave++, texto: '', productoId: null, cantidad: null, costoUnitario: null };
   }
 }

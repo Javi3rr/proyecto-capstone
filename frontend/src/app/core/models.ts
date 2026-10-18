@@ -403,11 +403,13 @@ export interface FacturaResumen {
 
 export interface FacturaDetalleLinea {
   id: number;
-  productoId: number;
+  /** null = producto aún no registrado (no sumó stock) */
+  productoId: number | null;
+  descripcion: string | null;
   cantidad: Decimal;
   costoUnitario: Decimal;
   subtotal: Decimal;
-  producto: { id: number; plu: string; nombre: string; unidad: UnidadMedida };
+  producto: { id: number; plu: string; nombre: string; unidad: UnidadMedida } | null;
 }
 
 export interface Factura extends FacturaResumen {
@@ -420,9 +422,11 @@ export interface NuevaFactura {
   proveedorId: number;
   numero: string;
   fecha: string;
+  /** Solo si no hay líneas: neto escrito a mano */
+  neto?: number;
   iva?: number;
   observacion: string | null;
-  lineas: { productoId: number; cantidad: number; costoUnitario: number }[];
+  lineas: { productoId: number | null; descripcion: string | null; cantidad: number; costoUnitario: number }[];
 }
 
 // ---------- Inventario ----------

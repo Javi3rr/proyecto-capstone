@@ -146,7 +146,8 @@ erDiagram
     FACTURAS_DETALLE {
         int id PK
         int factura_id FK
-        int producto_id FK
+        int producto_id FK "null = no registrado"
+        string descripcion
         decimal cantidad
         decimal costo_unitario
     }
@@ -203,10 +204,10 @@ erDiagram
 | Un cambio de precio no altera guías emitidas | `precio_kg` se copia en `despachos` y `guias` al momento de emitir |
 | Guía y factura no se editan, solo se anulan | `estado` + `motivo_anulacion` (+ quién y cuándo) |
 | Factura sin duplicados | `UNIQUE(proveedor_id, numero)` |
-| Registrar una factura suma al stock | Cada línea genera un movimiento `ENTRADA_FACTURA` en la misma transacción |
+| Registrar una factura suma al stock | Cada línea **con producto del catálogo** genera un movimiento `ENTRADA_FACTURA` en la misma transacción. Las líneas de productos aún no registrados (`producto_id` null + `descripcion`) no mueven stock. El detalle es opcional |
 | Anular una factura revierte el stock sin borrar historial | Movimientos `ANULACION_FACTURA` negativos + `estado`, motivo, quién y cuándo |
-| Neto, IVA y total | `facturas.neto` = Σ subtotales; `iva` = 19 % del neto (editable); `total` = neto + IVA |
-| Respaldo de la factura | Foto/PDF en el volumen `uploads`; se valida el tipo real del archivo y el anterior se conserva |
+| Neto, IVA y total | `facturas.neto` = Σ subtotales (o escrito a mano si no hay detalle); `iva` = 19 % del neto (editable); `total` = neto + IVA |
+| Respaldo de la factura | **Obligatorio**: la foto/PDF se envía junto con la factura y se guarda en la misma transacción (volumen `uploads`); se valida el tipo real del archivo y, si se reemplaza, el anterior se conserva |
 | Cruce con balanzas | `productos.plu` único, igual al código de la balanza |
 | No importar dos veces las mismas ventas | `importaciones_balanza.hash_archivo` único (hash del contenido) + no se aceptan dos cargas vigentes que cubran el mismo día |
 | Patopan es el catálogo maestro de las balanzas | Importar productos desde el Excel de las balanzas (por PLU) y exportarlos de vuelta en Excel |

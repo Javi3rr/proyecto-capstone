@@ -1,7 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayMaxSize,
-  ArrayMinSize,
   IsArray,
   IsInt,
   IsNotEmpty,
@@ -18,8 +17,17 @@ import {
 import { textoLimpio } from '../../common/utils';
 
 export class LineaFacturaDto {
+  /** Producto del catálogo. Si aún no está registrado, se envía null y se describe en "descripcion" */
+  @IsOptional()
   @IsInt()
-  productoId!: number;
+  productoId?: number | null;
+
+  /** Para productos aún no registrados (no suman stock) */
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  descripcion?: string | null;
 
   @IsNumber({ maxDecimalPlaces: 3 }, { message: 'Cantidad inválida (máx. 3 decimales)' })
   @Min(0.001, { message: 'La cantidad debe ser mayor que 0' })
@@ -46,6 +54,13 @@ export class CrearFacturaDto {
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'Fecha inválida (formato AAAA-MM-DD)' })
   fecha!: string;
 
+  /** Neto escrito a mano: solo se usa si la factura no trae líneas */
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 0 }, { message: 'El neto debe ser un monto entero' })
+  @Min(0)
+  @Max(10_000_000_000)
+  neto?: number;
+
   /** IVA de la factura. Si no se envía, se calcula como 19 % del neto. */
   @IsOptional()
   @IsNumber({ maxDecimalPlaces: 0 }, { message: 'El IVA debe ser un monto entero' })
@@ -58,12 +73,13 @@ export class CrearFacturaDto {
   @MaxLength(255)
   observacion?: string | null;
 
+  /** Opcional: la factura puede registrarse solo con su foto y montos */
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1, { message: 'La factura debe tener al menos una línea' })
   @ArrayMaxSize(200)
   @ValidateNested({ each: true })
   @Type(() => LineaFacturaDto)
-  lineas!: LineaFacturaDto[];
+  lineas?: LineaFacturaDto[];
 }
 
 export class AnularFacturaDto {

@@ -68,12 +68,19 @@ const MAX_MB = 10;
               <tbody>
                 @for (d of f.detalles; track d.id) {
                   <tr>
-                    <td><code>{{ d.producto.plu }}</code></td>
-                    <td>{{ d.producto.nombre }}</td>
-                    <td class="num">{{ num(d.cantidad) | number: '1.0-3' }} {{ d.producto.unidad === 'KG' ? 'kg' : 'un.' }}</td>
+                    <td><code>{{ d.producto?.plu ?? '—' }}</code></td>
+                    <td>
+                      {{ d.producto?.nombre ?? d.descripcion }}
+                      @if (!d.producto) {
+                        <span class="pp-chip">no registrado · no suma stock</span>
+                      }
+                    </td>
+                    <td class="num">{{ num(d.cantidad) | number: '1.0-3' }} {{ d.producto ? (d.producto.unidad === 'KG' ? 'kg' : 'un.') : '' }}</td>
                     <td class="num">{{ num(d.costoUnitario) | currency: 'CLP' : 'symbol-narrow' : '1.0-2' }}</td>
                     <td class="num">{{ num(d.subtotal) | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</td>
                   </tr>
+                } @empty {
+                  <tr><td colspan="5" class="pp-texto-suave">Registrada sin detalle de productos (ver la foto o PDF adjunto).</td></tr>
                 }
               </tbody>
               <tfoot>
@@ -88,7 +95,7 @@ const MAX_MB = 10;
           }
           <p class="meta">
             Registrada el {{ f.creadoEn | date: 'dd-MM-yyyy HH:mm' }} por {{ f.creadoPor ?? '—' }}.
-            @if (f.estado === 'VIGENTE') {
+            @if (f.estado === 'VIGENTE' && conStock(f) > 0) {
               Su mercadería ya está sumada al stock.
             }
           </p>
@@ -300,10 +307,15 @@ export class FacturaDetalleComponent {
     });
   }
 
+  /** Líneas con producto del catálogo (las que suman stock) */
+  protected conStock(f: Factura): number {
+    return f.detalles.filter((d) => d.productoId !== null).length;
+  }
+
   anular(f: Factura): void {
     const motivo = prompt(
       `Anular la factura N° ${f.numero} de ${f.proveedor.razonSocial}.\n` +
-        `Se descontará del stock la mercadería que sumó (${f.detalles.length} línea(s)).\n\n` +
+        `Se descontará del stock la mercadería que sumó (${this.conStock(f)} línea(s) con producto).\n\n` +
         'Indique el motivo (queda registrado en la auditoría):',
     );
     if (motivo === null) return;
