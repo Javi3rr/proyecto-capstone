@@ -19,6 +19,8 @@ import type { JwtPayload } from '../common/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { esFechaISO } from '../common/montos';
+import { plainToInstance } from 'class-transformer';
+import { validate, ValidationError } from 'class-validator';
 import { AnularFacturaDto, CrearFacturaDto } from './dto/factura.dto';
 import { ArchivoSubido, FacturasService, MAX_ARCHIVO_BYTES } from './facturas.service';
 
@@ -47,10 +49,21 @@ export class FacturasController {
     return this.facturas.obtener(id);
   }
 
-  /** Registra la factura y suma su mercadería al stock */
+  /**
+   * POST /api/facturas  (multipart)
+   *   - "archivo": foto o PDF de la factura (obligatorio)
+   *   - "datos": JSON con proveedorId, numero, fecha, lineas (opcional), neto, iva, observacion
+   * Suma al stock las líneas que tienen producto del catálogo.
+   */
   @Post()
-  crear(@Body() dto: CrearFacturaDto, @CurrentUser() user: JwtPayload) {
-    return this.facturas.crear(dto, user.sub);
+  @UseInterceptors(FileInterceptor('archivo', { limits: { fileSize: MAX_ARCHIVO_BYTES, files: 1 } }))
+  async crear(
+    @Body('datos') datos: string | undefined,
+    @UploadedFile() archivo: ArchivoSubido | undefined,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const dto = await leerDto(CrearFacturaDto, datos);
+    return this.facturas.crear(dto, archivo, user.sub);
   }
 
   /** Anula con motivo y descuenta del stock lo que la factura había sumado */
@@ -83,4 +96,22 @@ export class FacturasController {
       if (err && !res.headersSent) res.status(404).json({ statusCode: 404, message: 'Archivo no encontrado en el servidor' });
     });
   }
+}
+
+/** Convierte y valida el JSON que llega en un campo de texto de un formulario multipart */
+async function leerDto<T extends object>(clase: new () => T, texto: string | undefined): Promise<T> {
+  let plano: unknown;
+  try {
+    plano = JSON.parse(texto ?? '');
+  } catch {
+    throw new BadRequestException('Datos de la factura inválidos');
+  }
+  const dto = plainToInstance(clase, plano);
+  const errores = await validate(dto, { whitelist: true, forbidNonWhitelisted: true });
+  if (errores.length > 0) throw new BadRequestException(mensajes(errores));
+  return dto;
+}
+
+function mensajes(errores: ValidationError[]): string[] {
+  return errores.flatMap((e) => [...(Object.values(e.constraints ?? {}) as string[]), ...mensajes(e.children ?? [])]);
 }

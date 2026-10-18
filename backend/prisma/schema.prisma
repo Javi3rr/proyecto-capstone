@@ -363,8 +363,11 @@ model FacturaDetalle {
   id            Int      @id @default(autoincrement())
   facturaId     Int      @map("factura_id")
   factura       Factura  @relation(fields: [facturaId], references: [id], onDelete: Cascade)
-  productoId    Int      @map("producto_id")
-  producto      Producto @relation(fields: [productoId], references: [id])
+  /// null = producto aún no registrado en el catálogo (no mueve stock)
+  productoId    Int?     @map("producto_id")
+  producto      Producto? @relation(fields: [productoId], references: [id])
+  /// Texto de la línea cuando el producto no está en el catálogo
+  descripcion   String?  @db.VarChar(150)
   cantidad      Decimal  @db.Decimal(12, 3)
   /// Costo unitario neto (sin IVA)
   costoUnitario Decimal  @map("costo_unitario") @db.Decimal(10, 2)

@@ -92,8 +92,12 @@ export class MesonService {
     return this.http.get<Factura>(`/api/facturas/${id}`);
   }
 
-  crearFactura(datos: NuevaFactura): Observable<Factura> {
-    return this.http.post<Factura>('/api/facturas', datos);
+  /** Registra la factura junto con su foto o PDF (obligatoria) en una sola petición */
+  crearFactura(datos: NuevaFactura, archivo: File): Observable<Factura> {
+    const formulario = new FormData();
+    formulario.append('datos', JSON.stringify(datos));
+    formulario.append('archivo', archivo, archivo.name);
+    return this.http.post<Factura>('/api/facturas', formulario);
   }
 
   anularFactura(id: number, motivo: string): Observable<Factura> {
