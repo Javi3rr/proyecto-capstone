@@ -1,0 +1,21 @@
+# Entorno
+.env
+*.local
+
+# Node
+node_modules/
+dist/
+.angular/
+coverage/
+npm-debug.log*
+
+# Archivos subidos en desarrollo
+backend/uploads/
+
+# Editores / SO
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
