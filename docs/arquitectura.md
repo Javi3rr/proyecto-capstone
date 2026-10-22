@@ -67,6 +67,7 @@ backend/src/
 │
 ├── clientes/  repartidores/  precios/        → DESPACHO: maestros
 ├── planilla/  guias/  entrega/              → DESPACHO: operación diaria y entrega del día por repartidor
+├── dte/                                      → DESPACHO: guía de despacho electrónica (DTE 52) vía proveedor con API
 ├── reportes/                                 → DESPACHO: historial y promedios mensuales
 │
 ├── productos/  proveedores/                  → MESÓN: catálogo (importación/exportación CAS)
@@ -107,5 +108,6 @@ frontend/src/app/
 |---|---|---|
 | Formato del Excel de las balanzas | [MESÓN] Investigar modelo y formato de exportación de las balanzas | **Resuelto.** Balanzas CAS CN1-30P; archivos `PLUData` (catálogo) y `ScannerMap` (códigos de barras). Patopan es el catálogo maestro. Ver `informe-balanzas.md`. |
 | Exportación de ventas desde las balanzas | [MESÓN] Importar ventas de la balanza | **Parcial.** Importación por archivo con mapeo de columnas y cierre manual desde el reporte X, mientras no haya un PC conectado a las balanzas. |
+| Guía de despacho electrónica (SII) | [DESPACHO] Emitir la guía en el SII | **Implementado** con un proveedor certificado con API (OpenFactura), módulo `dte/` independiente del proveedor. Modos `simulado`, `pruebas` (sin efecto tributario) y `produccion` (requiere certificado digital, folios CAF y contrato). |
 | Tipo de impresora para guías | [DESPACHO] Generar e imprimir una guía por caja | **Definido:** hoja carta, una guía por cliente y vuelta. Falta la prueba en la impresora real. |
 | Precio del kg de pan | [DESPACHO] Configurar el precio del kg | **Resuelto:** $2.000/kg general, con precios especiales por cliente. |

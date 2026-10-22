@@ -5,6 +5,7 @@ import {
   Cliente,
   ClienteForm,
   Entrega,
+  EstadoEmisionDte,
   FiltroHistorial,
   Guia,
   Historial,
@@ -15,6 +16,7 @@ import {
   PromedioMensual,
   Repartidor,
   RepartidorForm,
+  ResultadoDteDia,
   Vuelta,
 } from '../../core/models';
 
@@ -122,6 +124,24 @@ export class DespachoService {
     if (filtro.clienteId) params = params.set('clienteId', filtro.clienteId);
     if (filtro.incluirAnuladas) params = params.set('incluirAnuladas', true);
     return this.http.get<Guia[]>('/api/guias', { params });
+  }
+
+  // ---------- Guía de despacho electrónica (SII) ----------
+  estadoDte(): Observable<EstadoEmisionDte> {
+    return this.http.get<EstadoEmisionDte>('/api/dte/estado');
+  }
+
+  emitirDte(guiaId: number): Observable<Guia> {
+    return this.http.post<Guia>(`/api/dte/guias/${guiaId}/emitir`, {});
+  }
+
+  emitirDteDia(fecha: string): Observable<ResultadoDteDia> {
+    return this.http.post<ResultadoDteDia>('/api/dte/emitir-dia', { fecha });
+  }
+
+  /** PDF oficial (con timbre) descargado con el token de sesión */
+  pdfDte(guiaId: number): Observable<Blob> {
+    return this.http.get(`/api/dte/guias/${guiaId}/pdf`, { responseType: 'blob' });
   }
 
   anularGuia(id: number, motivo: string): Observable<Guia> {

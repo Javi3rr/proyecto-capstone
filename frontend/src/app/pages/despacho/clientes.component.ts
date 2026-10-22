@@ -90,6 +90,23 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; cliente: Cliente };
               <label for="telefono">Teléfono</label>
               <input id="telefono" formControlName="telefono" maxlength="20" />
             </div>
+            <p class="subtitulo-sii">Datos tributarios (para la guía de despacho electrónica del SII)</p>
+            <div class="pp-campo">
+              <label for="rut">RUT</label>
+              <input id="rut" formControlName="rut" maxlength="12" placeholder="12.345.678-9" />
+            </div>
+            <div class="pp-campo">
+              <label for="razon">Razón social</label>
+              <input id="razon" formControlName="razonSocial" maxlength="100" placeholder="Vacío = nombre del cliente" />
+            </div>
+            <div class="pp-campo">
+              <label for="giro">Giro</label>
+              <input id="giro" formControlName="giro" maxlength="80" placeholder="Ej. Minimarket" />
+            </div>
+            <div class="pp-campo">
+              <label for="comuna">Comuna</label>
+              <input id="comuna" formControlName="comuna" maxlength="40" />
+            </div>
           </div>
           <div class="acciones">
             <button type="button" class="pp-btn pp-btn--secundario" (click)="cerrarFormulario()">Cancelar</button>
@@ -140,7 +157,12 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; cliente: Cliente };
               @for (c of filtrados(); track c.id) {
                 <tr [class.inactivo]="!c.activo">
                   <td>{{ c.orden }}</td>
-                  <td><strong>{{ c.nombre }}</strong></td>
+                  <td>
+                    <strong>{{ c.nombre }}</strong>
+                    @if (c.rut) {
+                      <small class="cobra">RUT {{ c.rut }}</small>
+                    }
+                  </td>
                   <td>{{ nombreModalidad[c.modalidad] }}</td>
                   <td>
                     {{ c.repartidor?.nombre ?? '—' }}
@@ -180,6 +202,13 @@ type Edicion = { tipo: 'nuevo' } | { tipo: 'editar'; cliente: Cliente };
     </section>
   `,
   styles: `
+    .subtitulo-sii {
+      grid-column: 1 / -1;
+      margin: 0.5rem 0 0;
+      font-weight: 700;
+      font-size: 0.85rem;
+      color: var(--pp-celeste-oscuro);
+    }
     .cobra {
       display: block;
       font-size: 0.75rem;
@@ -295,6 +324,10 @@ export class ClientesComponent {
     orden: this.fb.control<number | null>(null, [Validators.min(0)]),
     direccion: this.fb.control<string | null>(null),
     telefono: this.fb.control<string | null>(null),
+    rut: this.fb.control<string | null>(null),
+    razonSocial: this.fb.control<string | null>(null),
+    giro: this.fb.control<string | null>(null),
+    comuna: this.fb.control<string | null>(null),
   });
 
   constructor() {
@@ -347,6 +380,10 @@ export class ClientesComponent {
       orden: null,
       direccion: null,
       telefono: null,
+      rut: null,
+      razonSocial: null,
+      giro: null,
+      comuna: null,
     });
     this.edicion.set({ tipo: 'nuevo' });
   }
@@ -363,6 +400,10 @@ export class ClientesComponent {
       orden: c.orden,
       direccion: c.direccion,
       telefono: c.telefono,
+      rut: c.rut,
+      razonSocial: c.razonSocial,
+      giro: c.giro,
+      comuna: c.comuna,
     });
     this.edicion.set({ tipo: 'editar', cliente: c });
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -391,6 +432,10 @@ export class ClientesComponent {
       kgDescuentoDiario: v.kgDescuentoDiario ?? 0,
       direccion: v.direccion?.trim() || null,
       telefono: v.telefono?.trim() || null,
+      rut: v.rut?.trim() || null,
+      razonSocial: v.razonSocial?.trim() || null,
+      giro: v.giro?.trim() || null,
+      comuna: v.comuna?.trim() || null,
       ...(v.orden !== null ? { orden: v.orden } : {}),
     };
 

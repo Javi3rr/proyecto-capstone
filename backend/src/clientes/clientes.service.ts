@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { ModalidadCliente, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
-import { esErrorUnico } from '../common/utils';
+import { esErrorUnico, normalizarRut, rutValido } from '../common/utils';
 import { PrismaService } from '../prisma/prisma.service';
 import { ActualizarClienteDto, CrearClienteDto } from './dto/cliente.dto';
 
@@ -56,6 +56,10 @@ export class ClientesService {
           cobradorId,
           direccion: dto.direccion ?? null,
           telefono: dto.telefono ?? null,
+          rut: this.prepararRut(dto.rut),
+          razonSocial: dto.razonSocial ?? null,
+          giro: dto.giro ?? null,
+          comuna: dto.comuna ?? null,
           orden,
           precioKgEspecial: dto.precioKgEspecial ?? null,
           kgDescuentoDiario: dto.kgDescuentoDiario ?? 0,
@@ -85,6 +89,10 @@ export class ClientesService {
       cobradorId,
       direccion: dto.direccion,
       telefono: dto.telefono,
+      rut: dto.rut === undefined ? undefined : this.prepararRut(dto.rut),
+      razonSocial: dto.razonSocial,
+      giro: dto.giro,
+      comuna: dto.comuna,
       orden: dto.orden,
       precioKgEspecial: dto.precioKgEspecial,
       kgDescuentoDiario: dto.kgDescuentoDiario,
@@ -124,6 +132,13 @@ export class ClientesService {
     const r = await this.prisma.repartidor.findUnique({ where: { id: repartidorId } });
     if (!r || !r.activo) throw new BadRequestException('El repartidor seleccionado no existe o está inactivo');
     return r.id;
+  }
+
+  /** RUT opcional: se guarda como 12345678-9 y se valida el dígito verificador */
+  private prepararRut(rut?: string | null): string | null {
+    if (!rut) return null;
+    if (!rutValido(rut)) throw new BadRequestException(`El RUT ${rut} no es válido`);
+    return normalizarRut(rut);
   }
 
   /** Cobrador del pago día siguiente: solo aplica a esa modalidad (null = el mismo que reparte) */

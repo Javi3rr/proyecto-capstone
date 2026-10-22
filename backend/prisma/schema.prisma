@@ -103,6 +103,11 @@ model Cliente {
   nombre           String           @db.VarChar(120)
   direccion        String?          @db.VarChar(200)
   telefono         String?          @db.VarChar(20)
+  /// Datos tributarios para la guía de despacho electrónica (SII)
+  rut              String?          @db.VarChar(12)
+  razonSocial      String?          @map("razon_social") @db.VarChar(100)
+  giro             String?          @db.VarChar(80)
+  comuna           String?          @db.VarChar(40)
   modalidad        ModalidadCliente
   /// Repartidor que entrega / cobra (null para presenciales)
   repartidorId     Int?             @map("repartidor_id")
@@ -190,6 +195,16 @@ enum EstadoDocumento {
   ANULADA
 }
 
+/// Estado de la guía de despacho electrónica (DTE 52) ante el SII
+enum EstadoDte {
+  /// Solo guía interna (aún no se emite en el SII)
+  NO_ENVIADA
+  /// Emitida: tiene folio oficial y fue enviada al SII
+  EMITIDA
+  /// El proveedor o el SII la rechazó (ver dteError); se puede corregir y reintentar
+  RECHAZADA
+}
+
 /// Guía impresa por cliente y vuelta (acompaña al pan de esa entrega). Una vez emitida NO se edita: solo se anula.
 model Guia {
   /// El id es el N° correlativo de la guía
@@ -214,10 +229,25 @@ model Guia {
   creadoPorId      Int?            @map("creado_por_id")
   creadoEn         DateTime        @default(now()) @map("creado_en")
 
+  // ---- Guía de despacho electrónica (DTE 52) ----
+  dteEstado        EstadoDte       @default(NO_ENVIADA) @map("dte_estado")
+  /// Folio oficial asignado con el CAF del SII
+  dteFolio         Int?            @map("dte_folio")
+  /// SIMULADO, PRUEBAS o PRODUCCION
+  dteAmbiente      String?         @map("dte_ambiente") @db.VarChar(12)
+  dteToken         String?         @map("dte_token") @db.VarChar(200)
+  dteIntentos      Int             @default(0) @map("dte_intentos")
+  dteError         String?         @map("dte_error") @db.VarChar(1000)
+  dtePdfPath       String?         @map("dte_pdf_path") @db.VarChar(255)
+  dteXmlPath       String?         @map("dte_xml_path") @db.VarChar(255)
+  dteEmitidaEn     DateTime?       @map("dte_emitida_en")
+  dteEmitidaPorId  Int?            @map("dte_emitida_por_id")
+
   pagos Pago[]
 
   @@index([clienteId, fecha])
   @@index([fecha])
+  @@index([dteEstado])
   @@map("guias")
 }
 
