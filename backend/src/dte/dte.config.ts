@@ -37,7 +37,7 @@ const PRUEBAS = {
     rut: '76795561-8',
     razonSocial: 'HAULMER SPA',
     giro: 'VENTA AL POR MENOR EN EMPRESAS DE VENTA A DISTANCIA VIA INTERNET',
-    acteco: 525130,
+    acteco: 479100,
     direccion: 'ARTURO PRAT 527 CURICO',
     comuna: 'Curicó',
     sucursal: '81303347',

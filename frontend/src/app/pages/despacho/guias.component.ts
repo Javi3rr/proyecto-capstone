@@ -131,6 +131,9 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
                     >
                       {{ g.dteEstado === 'RECHAZADA' ? 'Reintentar' : 'Emitir en SII' }}
                     </button>
+                    @if (g.dteEstado === 'RECHAZADA' && g.dteError) {
+                      <small class="motivo" [title]="g.dteError">{{ g.dteError }}</small>
+                    }
                   } @else {
                     <span class="pp-texto-suave">—</span>
                   }
@@ -229,6 +232,18 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
       font: 600 0.85rem var(--pp-fuente);
       text-decoration: underline;
       cursor: pointer;
+    }
+    .motivo {
+      display: block;
+      max-width: 22rem;
+      margin-top: 0.2rem;
+      white-space: normal;
+      font-size: 0.72rem;
+      color: var(--pp-error);
+      overflow: hidden;
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
     }
     .aviso {
       display: block;
