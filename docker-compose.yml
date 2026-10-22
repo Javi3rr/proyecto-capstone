@@ -46,6 +46,18 @@ services:
       JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
       UPLOADS_DIR: /app/uploads
       SEED_ON_START: ${SEED_ON_START:-true}
+      # Guía de despacho electrónica (SII). Ver .env.example
+      DTE_MODO: ${DTE_MODO:-simulado}
+      DTE_API_URL: ${DTE_API_URL:-}
+      DTE_API_KEY: ${DTE_API_KEY:-}
+      DTE_EMISOR_RUT: ${DTE_EMISOR_RUT:-}
+      DTE_EMISOR_RAZON_SOCIAL: ${DTE_EMISOR_RAZON_SOCIAL:-}
+      DTE_EMISOR_GIRO: ${DTE_EMISOR_GIRO:-}
+      DTE_EMISOR_ACTECO: ${DTE_EMISOR_ACTECO:-}
+      DTE_EMISOR_DIRECCION: ${DTE_EMISOR_DIRECCION:-}
+      DTE_EMISOR_COMUNA: ${DTE_EMISOR_COMUNA:-}
+      DTE_EMISOR_SUCURSAL: ${DTE_EMISOR_SUCURSAL:-}
+      DTE_PRECIOS_CON_IVA: ${DTE_PRECIOS_CON_IVA:-true}
     volumes:
       - uploads:/app/uploads
     healthcheck:

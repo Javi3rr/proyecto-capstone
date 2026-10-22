@@ -28,6 +28,11 @@ export interface Cliente {
   nombre: string;
   direccion: string | null;
   telefono: string | null;
+  /** Datos tributarios para la guía electrónica del SII */
+  rut: string | null;
+  razonSocial: string | null;
+  giro: string | null;
+  comuna: string | null;
   modalidad: ModalidadCliente;
   repartidorId: number | null;
   orden: number;
@@ -47,6 +52,10 @@ export interface ClienteForm {
   cobradorId: number | null;
   direccion: string | null;
   telefono: string | null;
+  rut: string | null;
+  razonSocial: string | null;
+  giro: string | null;
+  comuna: string | null;
   orden?: number;
   precioKgEspecial: number | null;
   kgDescuentoDiario: number;
@@ -200,6 +209,29 @@ export interface Guia {
   repartidor: { id: number; nombre: string; patente: string | null } | null;
   /** Solo en la respuesta de impresión: true si ya se había impreso antes */
   esCopia?: boolean;
+  /** Guía de despacho electrónica (DTE 52) ante el SII */
+  dteEstado: EstadoDte;
+  dteFolio: number | null;
+  dteAmbiente: string | null;
+  dteError: string | null;
+  dtePdfPath: string | null;
+  dteEmitidaEn: string | null;
+}
+
+export type EstadoDte = 'NO_ENVIADA' | 'EMITIDA' | 'RECHAZADA';
+
+export interface EstadoEmisionDte {
+  modo: 'simulado' | 'pruebas' | 'produccion';
+  ambiente: string;
+  emisor: { rut: string | null; razonSocial: string | null };
+  listo: boolean;
+  problemas: string[];
+}
+
+export interface ResultadoDteDia {
+  total: number;
+  emitidas: { guiaId: number; folio: number | null }[];
+  errores: { guiaId: number; mensaje: string }[];
 }
 
 // ---------- Entrega del día ----------

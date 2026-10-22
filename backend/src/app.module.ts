@@ -8,6 +8,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { HealthController } from './health/health.controller';
+import { DteModule } from './dte/dte.module';
 import { EntregaModule } from './entrega/entrega.module';
 import { FacturasModule } from './facturas/facturas.module';
 import { GuiasModule } from './guias/guias.module';
@@ -35,6 +36,7 @@ import { VentasModule } from './ventas/ventas.module';
     PlanillaModule,
     GuiasModule,
     EntregaModule,
+    DteModule,
     MantencionModule,
     ReportesModule,
     ProductosModule,

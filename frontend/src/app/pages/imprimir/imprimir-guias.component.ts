@@ -56,6 +56,9 @@ import { DespachoService } from '../despacho/despacho.service';
               <p class="numero">N° {{ folio(g.id) }}</p>
               <p>Fecha: <strong>{{ g.fecha | date: 'dd-MM-yyyy' : 'UTC' }}</strong></p>
               <p>Entrega: <strong>{{ nombreVuelta[g.vuelta] }}</strong></p>
+              @if (g.dteEstado === 'EMITIDA') {
+                <p class="sii">Guía de despacho electrónica SII N° <strong>{{ g.dteFolio }}</strong></p>
+              }
             </div>
           </header>
 
@@ -92,7 +95,7 @@ import { DespachoService } from '../despacho/despacho.service';
 
           <p class="aviso">Cliente: verifique el peso del pan al recibirlo. Ante cualquier diferencia, comuníquese con la panadería.</p>
           <p class="legal">
-            Documento interno de control de despacho, no válido como documento tributario ·
+            {{ g.dteEstado === 'EMITIDA' ? 'Respaldo interno de la guía de despacho electrónica SII N° ' + g.dteFolio : 'Documento interno de control de despacho, no válido como documento tributario' }} ·
             Emitida {{ g.creadoEn | date: 'dd-MM-yyyy HH:mm' }}
             @if (g.estado === 'ANULADA') {
               · Anulada: {{ g.motivoAnulacion }}
@@ -196,6 +199,12 @@ import { DespachoService } from '../despacho/despacho.service';
     .numero {
       font-size: 24pt;
       font-weight: 800;
+    }
+    .sii {
+      margin-top: 2mm;
+      padding: 1mm 2mm;
+      border: 1px solid #333;
+      font-size: 9pt;
     }
     .datos {
       display: grid;

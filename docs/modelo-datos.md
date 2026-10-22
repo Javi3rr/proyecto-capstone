@@ -99,6 +99,8 @@ erDiagram
         enum estado "VIGENTE | ANULADA"
         string motivo_anulacion
         int impresiones
+        enum dte_estado "NO_ENVIADA | EMITIDA | RECHAZADA"
+        int dte_folio "folio oficial SII"
     }
     PAGOS {
         int id PK
@@ -202,6 +204,7 @@ erDiagram
 | Precio especial por cliente | `clientes.precio_kg_especial` (null = precio general vigente) |
 | Kg no cobrados cada día (ej. Suegra: 1 kg) | `clientes.kg_descuento_diario` → monto = (kg − descuento) × precio |
 | Un cambio de precio no altera guías emitidas | `precio_kg` se copia en `despachos` y `guias` al momento de emitir |
+| Guía de despacho electrónica (SII) | La guía interna puede "emitirse en el SII" como DTE 52 (IndTraslado 1 = venta, TipoDespacho 2 = reparto / 1 = retiro). Se guarda `dte_estado` (NO_ENVIADA, EMITIDA, RECHAZADA), folio oficial, ambiente, PDF y XML. El cliente necesita RUT (fuera de producción se usa un receptor de prueba) |
 | Guía y factura no se editan, solo se anulan | `estado` + `motivo_anulacion` (+ quién y cuándo) |
 | Factura sin duplicados | `UNIQUE(proveedor_id, numero)` |
 | Registrar una factura suma al stock | Cada línea **con producto del catálogo** genera un movimiento `ENTRADA_FACTURA` en la misma transacción. Las líneas de productos aún no registrados (`producto_id` null + `descripcion`) no mueven stock. El detalle es opcional |

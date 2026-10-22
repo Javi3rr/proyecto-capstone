@@ -35,6 +35,31 @@ export class CrearClienteDto {
   @MaxLength(20)
   telefono?: string | null;
 
+  /** RUT del cliente (para la guía electrónica del SII). Se valida el dígito verificador. */
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @MaxLength(12)
+  rut?: string | null;
+
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  razonSocial?: string | null;
+
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  giro?: string | null;
+
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  comuna?: string | null;
+
   /** Si no se indica, el cliente queda al final de su grupo en la planilla */
   @IsOptional()
   @IsInt()
@@ -87,6 +112,31 @@ export class ActualizarClienteDto {
   @IsString()
   @MaxLength(20)
   telefono?: string | null;
+
+  /** RUT del cliente (para la guía electrónica del SII). Se valida el dígito verificador. */
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @MaxLength(12)
+  rut?: string | null;
+
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  razonSocial?: string | null;
+
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  giro?: string | null;
+
+  @Transform(textoLimpio)
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  comuna?: string | null;
 
   @IsOptional()
   @IsInt()
