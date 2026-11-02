@@ -6,6 +6,7 @@ import {
   ClienteForm,
   Entrega,
   EstadoEmisionDte,
+  FacturaMensual,
   FiltroHistorial,
   Guia,
   Historial,
@@ -17,6 +18,8 @@ import {
   Repartidor,
   RepartidorForm,
   ResultadoDteDia,
+  ResultadoDteMes,
+  ResumenFacturacion,
   Vuelta,
 } from '../../core/models';
 
@@ -146,6 +149,35 @@ export class DespachoService {
 
   anularGuia(id: number, motivo: string): Observable<Guia> {
     return this.http.post<Guia>(`/api/guias/${id}/anular`, { motivo });
+  }
+
+  // ---------- Facturación mensual ----------
+  facturacion(mes: string): Observable<ResumenFacturacion> {
+    return this.http.get<ResumenFacturacion>(`/api/facturacion/meses/${mes}`);
+  }
+
+  /** Genera la factura del mes de un cliente; sin clienteId, las de todos los pendientes */
+  generarFacturas(mes: string, clienteId?: number): Observable<{ creadas: number[]; errores: { clienteId: number; mensaje: string }[] }> {
+    return this.http.post<{ creadas: number[]; errores: { clienteId: number; mensaje: string }[] }>(
+      `/api/facturacion/meses/${mes}/generar`,
+      clienteId ? { clienteId } : {},
+    );
+  }
+
+  emitirFacturasMes(mes: string): Observable<ResultadoDteMes> {
+    return this.http.post<ResultadoDteMes>(`/api/facturacion/meses/${mes}/emitir`, {});
+  }
+
+  emitirFactura(id: number): Observable<FacturaMensual> {
+    return this.http.post<FacturaMensual>(`/api/facturacion/facturas/${id}/emitir`, {});
+  }
+
+  anularFactura(id: number, motivo: string): Observable<FacturaMensual> {
+    return this.http.post<FacturaMensual>(`/api/facturacion/facturas/${id}/anular`, { motivo });
+  }
+
+  pdfFactura(id: number): Observable<Blob> {
+    return this.http.get(`/api/facturacion/facturas/${id}/pdf`, { responseType: 'blob' });
   }
 
   // ---------- Entrega del día ----------

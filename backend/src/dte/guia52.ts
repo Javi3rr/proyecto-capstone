@@ -24,7 +24,54 @@ export interface GuiaParaDte {
 const NOMBRE_VUELTA: Record<number, string> = { 1: 'mañana', 2: 'tarde 1', 3: 'tarde 2' };
 
 /** Recorta al largo máximo del formato SII */
-const corto = (t: string, max: number) => t.trim().slice(0, max);
+export const corto = (t: string, max: number) => t.trim().slice(0, max);
+
+/** Precio neto del kg con 2 decimales (el SII valida monto = cantidad × precio con este precio) */
+export function precioNetoKg(precioKg: number, preciosConIva: boolean): number {
+  return Math.round((preciosConIva ? precioKg / 1.19 : precioKg) * 100) / 100;
+}
+
+export interface ClienteReceptor {
+  nombre: string;
+  rut: string | null;
+  razonSocial: string | null;
+  giro: string | null;
+  direccion: string | null;
+  comuna: string | null;
+}
+
+/** Receptor del DTE. Sin RUT solo se permite fuera de producción, con el receptor de prueba. */
+export function receptorDte(cliente: ClienteReceptor, c: ConfigDte, documento: string) {
+  if (!cliente.rut) {
+    if (c.modo === 'produccion') {
+      throw new Error(`El cliente "${cliente.nombre}" no tiene RUT. Complételo en Clientes para emitir la ${documento}.`);
+    }
+    return { receptor: c.receptorPrueba, dePrueba: true };
+  }
+  return {
+    receptor: {
+      rut: cliente.rut,
+      razonSocial: cliente.razonSocial || cliente.nombre,
+      giro: cliente.giro || 'PARTICULAR',
+      direccion: cliente.direccion || 'SIN DIRECCION',
+      comuna: cliente.comuna || c.emisor.comuna,
+    },
+    dePrueba: false,
+  };
+}
+
+/** Bloque Emisor, igual en todos los DTE de la panadería */
+export function emisorDte(c: ConfigDte) {
+  return {
+    RUTEmisor: c.emisor.rut,
+    RznSoc: corto(c.emisor.razonSocial, 100),
+    GiroEmis: corto(c.emisor.giro, 80),
+    Acteco: c.emisor.acteco,
+    DirOrigen: corto(c.emisor.direccion, 70),
+    CmnaOrigen: corto(c.emisor.comuna, 20),
+    ...(c.emisor.sucursal ? { CdgSIISucur: c.emisor.sucursal } : {}),
+  };
+}
 
 /**
  * Arma la guía de despacho electrónica (DTE tipo 52) en la estructura del formato SII,
@@ -36,23 +83,11 @@ const corto = (t: string, max: number) => t.trim().slice(0, max);
  *  - Se cobra lo despachado menos el descuento diario del cliente (ej. 1 kg de la Suegra).
  */
 export function armarGuia52(g: GuiaParaDte, c: ConfigDte) {
-  const sinRut = !g.cliente.rut;
-  if (sinRut && c.modo === 'produccion') {
-    throw new Error(`El cliente "${g.cliente.nombre}" no tiene RUT. Complételo en Clientes para emitir la guía electrónica.`);
-  }
-  const receptor = sinRut
-    ? c.receptorPrueba
-    : {
-        rut: g.cliente.rut!,
-        razonSocial: g.cliente.razonSocial || g.cliente.nombre,
-        giro: g.cliente.giro || 'PARTICULAR',
-        direccion: g.cliente.direccion || 'SIN DIRECCION',
-        comuna: g.cliente.comuna || c.emisor.comuna,
-      };
+  const { receptor, dePrueba: sinRut } = receptorDte(g.cliente, c, 'guía electrónica');
 
   const kgCobrados = Math.max(g.kg - g.kgDescuento, 0);
-  // Precio neto con 2 decimales y monto = cantidad × precio (así lo valida el SII)
-  const precioNeto = Math.round((c.preciosConIva ? g.precioKg / 1.19 : g.precioKg) * 100) / 100;
+  // Monto = cantidad × precio neto (así lo valida el SII)
+  const precioNeto = precioNetoKg(g.precioKg, c.preciosConIva);
   const neto = Math.round(kgCobrados * precioNeto);
   const iva = Math.round(neto * 0.19);
 
@@ -83,15 +118,7 @@ export function armarGuia52(g: GuiaParaDte, c: ConfigDte) {
           IndTraslado: 1,
           TipoDespacho: presencial ? 1 : 2,
         },
-        Emisor: {
-          RUTEmisor: c.emisor.rut,
-          RznSoc: corto(c.emisor.razonSocial, 100),
-          GiroEmis: corto(c.emisor.giro, 80),
-          Acteco: c.emisor.acteco,
-          DirOrigen: corto(c.emisor.direccion, 70),
-          CmnaOrigen: corto(c.emisor.comuna, 20),
-          ...(c.emisor.sucursal ? { CdgSIISucur: c.emisor.sucursal } : {}),
-        },
+        Emisor: emisorDte(c),
         Receptor: {
           RUTRecep: receptor.rut,
           RznSocRecep: corto(receptor.razonSocial, 100),

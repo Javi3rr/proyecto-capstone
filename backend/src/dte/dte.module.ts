@@ -5,5 +5,6 @@ import { DteService } from './dte.service';
 @Module({
   controllers: [DteController],
   providers: [DteService],
+  exports: [DteService],
 })
 export class DteModule {}

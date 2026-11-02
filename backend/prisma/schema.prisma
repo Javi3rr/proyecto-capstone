@@ -125,10 +125,11 @@ model Cliente {
   creadoEn         DateTime         @default(now()) @map("creado_en")
   actualizadoEn    DateTime         @updatedAt @map("actualizado_en")
 
-  despachos Despacho[]
-  guias     Guia[]
-  pagos     Pago[]
-  noPagos   NoPago[]
+  despachos        Despacho[]
+  guias            Guia[]
+  pagos            Pago[]
+  noPagos          NoPago[]
+  facturasMensuales FacturaMensual[]
 
   @@unique([nombre, modalidad])
   @@index([modalidad, orden])
@@ -243,12 +244,64 @@ model Guia {
   dteEmitidaEn     DateTime?       @map("dte_emitida_en")
   dteEmitidaPorId  Int?            @map("dte_emitida_por_id")
 
+  /// Factura mensual que cobra esta guía (null = aún no facturada)
+  facturaMensualId Int?            @map("factura_mensual_id")
+  facturaMensual   FacturaMensual? @relation(fields: [facturaMensualId], references: [id])
+
   pagos Pago[]
 
   @@index([clienteId, fecha])
   @@index([fecha])
   @@index([dteEstado])
+  @@index([facturaMensualId])
   @@map("guias")
+}
+
+/// Factura electrónica (DTE 33) de fin de mes: cobra con IVA todas las guías vigentes del cliente en el mes.
+/// Los montos quedan congelados al generarla; para corregir se anula y se genera de nuevo.
+model FacturaMensual {
+  /// N° interno de la factura (el folio oficial es dteFolio)
+  id               Int             @id @default(autoincrement())
+  clienteId        Int             @map("cliente_id")
+  cliente          Cliente         @relation(fields: [clienteId], references: [id])
+  /// Primer día del mes facturado
+  periodo          DateTime        @db.Date
+  fechaEmision     DateTime        @map("fecha_emision") @db.Date
+  /// Kg cobrados (despachados menos el descuento diario)
+  kg               Decimal         @db.Decimal(12, 3)
+  /// Suma de los montos de las guías (lo cobrado al cliente día a día)
+  montoGuias       Decimal         @map("monto_guias") @db.Decimal(14, 2)
+  neto             Decimal         @db.Decimal(14, 2)
+  /// 19 % del neto
+  iva              Decimal         @db.Decimal(14, 2)
+  /// neto + iva
+  total            Decimal         @db.Decimal(14, 2)
+  /// Líneas de la factura, una por precio del kg: [{ precioKg, precioNeto, kg, guias, neto }]
+  detalle          Json
+  estado           EstadoDocumento @default(VIGENTE)
+  motivoAnulacion  String?         @map("motivo_anulacion") @db.VarChar(255)
+  anuladaPorId     Int?            @map("anulada_por_id")
+  anuladaEn        DateTime?       @map("anulada_en")
+  creadoPorId      Int?            @map("creado_por_id")
+  creadoEn         DateTime        @default(now()) @map("creado_en")
+
+  // ---- Factura electrónica (DTE 33) ----
+  dteEstado        EstadoDte       @default(NO_ENVIADA) @map("dte_estado")
+  dteFolio         Int?            @map("dte_folio")
+  dteAmbiente      String?         @map("dte_ambiente") @db.VarChar(12)
+  dteToken         String?         @map("dte_token") @db.VarChar(200)
+  dteIntentos      Int             @default(0) @map("dte_intentos")
+  dteError         String?         @map("dte_error") @db.VarChar(1000)
+  dtePdfPath       String?         @map("dte_pdf_path") @db.VarChar(255)
+  dteXmlPath       String?         @map("dte_xml_path") @db.VarChar(255)
+  dteEmitidaEn     DateTime?       @map("dte_emitida_en")
+  dteEmitidaPorId  Int?            @map("dte_emitida_por_id")
+
+  guias Guia[]
+
+  @@index([periodo, clienteId])
+  @@index([dteEstado])
+  @@map("facturas_mensuales")
 }
 
 model Pago {

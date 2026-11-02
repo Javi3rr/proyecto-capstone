@@ -20,6 +20,8 @@ erDiagram
     GUIAS ||--o{ PAGOS : "se paga con"
     REPARTIDORES ||--o{ PAGOS : "rinde"
     CLIENTES ||--o{ NO_PAGOS : "excepcion de cobro"
+    CLIENTES ||--o{ FACTURAS_MENSUALES : "recibe"
+    FACTURAS_MENSUALES ||--o{ GUIAS : "cobra"
     REPARTIDORES ||--o{ PAGAS_REPARTIDOR : "recibe"
 
     PROVEEDORES ||--o{ FACTURAS : "emite"
@@ -101,6 +103,22 @@ erDiagram
         int impresiones
         enum dte_estado "NO_ENVIADA | EMITIDA | RECHAZADA"
         int dte_folio "folio oficial SII"
+        int factura_mensual_id FK "null = sin facturar"
+    }
+    FACTURAS_MENSUALES {
+        int id PK
+        int cliente_id FK
+        date periodo "primer dia del mes"
+        date fecha_emision
+        decimal kg
+        decimal monto_guias
+        decimal neto
+        decimal iva
+        decimal total
+        json detalle "una linea por precio del kg"
+        enum estado "VIGENTE | ANULADA"
+        enum dte_estado "NO_ENVIADA | EMITIDA | RECHAZADA"
+        int dte_folio "folio oficial SII (DTE 33)"
     }
     PAGOS {
         int id PK
@@ -205,6 +223,7 @@ erDiagram
 | Kg no cobrados cada día (ej. Suegra: 1 kg) | `clientes.kg_descuento_diario` → monto = (kg − descuento) × precio |
 | Un cambio de precio no altera guías emitidas | `precio_kg` se copia en `despachos` y `guias` al momento de emitir |
 | Guía de despacho electrónica (SII) | La guía interna puede "emitirse en el SII" como DTE 52 (IndTraslado 1 = venta, TipoDespacho 2 = reparto / 1 = retiro). Se guarda `dte_estado` (NO_ENVIADA, EMITIDA, RECHAZADA), folio oficial, ambiente, PDF y XML. El cliente necesita RUT (fuera de producción se usa un receptor de prueba) |
+| Facturación mensual (DTE 33) | Una factura vigente por cliente y mes con todas sus guías vigentes del mes. Se agrupa por precio del kg: kg cobrados × precio neto (precio ÷ 1,19 con 2 decimales si el precio incluye IVA); `iva` = 19 % del neto; `total` = neto + IVA. Los montos quedan congelados en `facturas_mensuales` y cada guía apunta a su factura (`guias.factura_mensual_id`), así no se factura dos veces. Una guía facturada no se puede anular sin anular antes la factura; anular la factura libera sus guías. La factura referencia las guías electrónicas (DTE 52) por folio, o con una referencia global si son más de 40 |
 | Guía y factura no se editan, solo se anulan | `estado` + `motivo_anulacion` (+ quién y cuándo) |
 | Factura sin duplicados | `UNIQUE(proveedor_id, numero)` |
 | Registrar una factura suma al stock | Cada línea **con producto del catálogo** genera un movimiento `ENTRADA_FACTURA` en la misma transacción. Las líneas de productos aún no registrados (`producto_id` null + `descripcion`) no mueven stock. El detalle es opcional |

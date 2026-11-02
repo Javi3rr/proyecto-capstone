@@ -46,6 +46,7 @@ export class DespachoLayoutComponent {
     { ruta: '/despacho/planilla', texto: 'Planilla del día', exacta: false },
     { ruta: '/despacho/guias', texto: 'Guías', exacta: false },
     { ruta: '/despacho/entrega', texto: 'Entrega del día', exacta: false },
+    { ruta: '/despacho/facturacion', texto: 'Facturación', exacta: false },
     { ruta: '/despacho/historial', texto: 'Historial', exacta: false },
     { ruta: '/despacho/promedios', texto: 'Promedios', exacta: false },
     { ruta: '/despacho/clientes', texto: 'Clientes', exacta: false },

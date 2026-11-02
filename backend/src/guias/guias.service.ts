@@ -120,6 +120,11 @@ export class GuiasService {
   async anular(id: number, motivo: string, usuarioId?: number) {
     const antes = await this.obtener(id);
     if (antes.estado === 'ANULADA') throw new ConflictException('La guía ya está anulada');
+    if (antes.facturaMensualId) {
+      throw new ConflictException(
+        `La guía está incluida en la factura mensual N° ${antes.facturaMensualId}. Anule primero esa factura (pestaña Facturación).`,
+      );
+    }
     const despues = await this.prisma.guia.update({
       where: { id },
       data: { estado: 'ANULADA', motivoAnulacion: motivo, anuladaPorId: usuarioId ?? null, anuladaEn: new Date() },
