@@ -1,4 +1,4 @@
-import { ConfigDte } from './dte.config';
+import { ConfigDte, nombreAmbiente } from './dte.config';
 
 /** Resultado de emitir un DTE con un proveedor */
 export interface ResultadoEmision {
@@ -24,7 +24,7 @@ export interface ProveedorDte {
 
 /** Modo simulado: no se conecta a nada; asigna folios de prueba correlativos */
 export class ProveedorSimulado implements ProveedorDte {
-  readonly nombre = 'SIMULADO';
+  readonly nombre = nombreAmbiente('simulado');
 
   async emitir(_dte: unknown, _clave: string, siguienteFolio: () => Promise<number>): Promise<ResultadoEmision> {
     return { folio: await siguienteFolio(), token: null, pdfBase64: null, xmlBase64: null };
@@ -40,7 +40,7 @@ export class ProveedorOpenFactura implements ProveedorDte {
   readonly nombre: string;
 
   constructor(private readonly c: ConfigDte) {
-    this.nombre = c.modo === 'produccion' ? 'PRODUCCION' : 'PRUEBAS';
+    this.nombre = nombreAmbiente(c.modo);
   }
 
   async emitir(dte: unknown, claveIdempotencia: string): Promise<ResultadoEmision> {

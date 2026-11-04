@@ -54,6 +54,12 @@ export const routes: Routes = [
             title: 'Entrega del día · Patopan',
             loadComponent: () => import('./pages/despacho/entrega.component').then((m) => m.EntregaComponent),
           },
+          {
+            path: 'facturacion',
+            title: 'Facturación mensual · Patopan',
+            loadComponent: () =>
+              import('./pages/despacho/facturacion.component').then((m) => m.FacturacionComponent),
+          },
           // Pantallas antiguas reemplazadas por la Entrega del día
           { path: 'cuadre', redirectTo: 'entrega' },
           { path: 'saldos', redirectTo: 'entrega' },

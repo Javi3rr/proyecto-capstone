@@ -234,6 +234,98 @@ export interface ResultadoDteDia {
   errores: { guiaId: number; mensaje: string }[];
 }
 
+// ---------- Facturación mensual ----------
+
+/** Línea de la factura: guías del mes con un mismo precio del kg */
+export interface LineaFacturaMensual {
+  precioKg: number;
+  precioNeto: number;
+  kg: number;
+  guias: number;
+  neto: number;
+}
+
+export interface FacturaMensual {
+  id: number;
+  clienteId: number;
+  periodo: string;
+  fechaEmision: string;
+  kg: Decimal;
+  montoGuias: Decimal;
+  neto: Decimal;
+  iva: Decimal;
+  total: Decimal;
+  estado: EstadoDocumento;
+  motivoAnulacion: string | null;
+  creadoEn: string;
+  dteEstado: EstadoDte;
+  dteFolio: number | null;
+  dteAmbiente: string | null;
+  dteError: string | null;
+  dtePdfPath: string | null;
+  dteEmitidaEn: string | null;
+  /** Nota de crédito (DTE 61) que la anula en el SII; si quedó RECHAZADA la factura sigue vigente */
+  notaCredito: NotaCredito | null;
+}
+
+export interface NotaCredito {
+  id: number;
+  fecha: string;
+  motivo: string;
+  dteEstado: EstadoDte;
+  dteFolio: number | null;
+  dteAmbiente: string | null;
+  dteError: string | null;
+  dtePdfPath: string | null;
+}
+
+export interface FilaFacturacion {
+  cliente: { id: number; nombre: string; rut: string | null; modalidad: ModalidadCliente };
+  guias: number;
+  guiasSinFolio: number;
+  guiasSinFacturar: number;
+  lineas: LineaFacturaMensual[];
+  kg: number;
+  montoGuias: number;
+  neto: number;
+  iva: number;
+  total: number;
+  /** Factura vigente del mes (null = aún no se genera; los montos son el cálculo) */
+  factura: FacturaMensual | null;
+  facturasAnuladas: { id: number; dteFolio: number | null; motivoAnulacion: string | null; notaCredito: NotaCredito | null }[];
+}
+
+export interface ResumenFacturacion {
+  mes: string;
+  desde: string;
+  hasta: string;
+  mesCerrado: boolean;
+  /** Día 10 del mes siguiente (AAAA-MM-DD): último día para emitir las facturas del mes */
+  plazoLegal: string;
+  /** Días que quedan hasta el plazo (negativo = vencido) */
+  diasParaPlazo: number;
+  preciosConIva: boolean;
+  filas: FilaFacturacion[];
+  totales: {
+    clientes: number;
+    clientesSinRut: number;
+    facturasGeneradas: number;
+    facturasSinEmitir: number;
+    guiasSinFolio: number;
+    kg: number;
+    montoGuias: number;
+    neto: number;
+    iva: number;
+    total: number;
+  };
+}
+
+export interface ResultadoDteMes {
+  total: number;
+  emitidas: { facturaId: number; folio: number | null }[];
+  errores: { facturaId: number; mensaje: string }[];
+}
+
 // ---------- Entrega del día ----------
 
 /** Lo despachado a un cliente en un día (suma de sus vueltas) */

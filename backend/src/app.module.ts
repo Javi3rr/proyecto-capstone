@@ -10,6 +10,7 @@ import { AuditInterceptor } from './common/interceptors/audit.interceptor';
 import { HealthController } from './health/health.controller';
 import { DteModule } from './dte/dte.module';
 import { EntregaModule } from './entrega/entrega.module';
+import { FacturacionModule } from './facturacion/facturacion.module';
 import { FacturasModule } from './facturas/facturas.module';
 import { GuiasModule } from './guias/guias.module';
 import { InventarioModule } from './inventario/inventario.module';
@@ -37,6 +38,7 @@ import { VentasModule } from './ventas/ventas.module';
     GuiasModule,
     EntregaModule,
     DteModule,
+    FacturacionModule,
     MantencionModule,
     ReportesModule,
     ProductosModule,
