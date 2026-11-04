@@ -73,6 +73,29 @@ export function emisorDte(c: ConfigDte) {
   };
 }
 
+/** Fecha (AAAA-MM-DD) y hora (HH:MM:SS) de Chile de un instante */
+function enSantiago(d: Date) {
+  const zona = { timeZone: 'America/Santiago' } as const;
+  return {
+    fecha: new Intl.DateTimeFormat('en-CA', zona).format(d),
+    hora: new Intl.DateTimeFormat('en-GB', { ...zona, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).format(d),
+  };
+}
+
+/** Datos del traslado que exige la Res. SII 144/2026 y que faltan en el reparto de esta guía */
+export function datosTrasladoFaltantes(g: Pick<GuiaParaDte, 'cliente' | 'repartidor'>): string[] {
+  const faltan: string[] = [];
+  if (!g.repartidor) {
+    faltan.push('repartidor (chofer y patente)');
+  } else {
+    if (!g.repartidor.rut) faltan.push(`RUT del chofer ${g.repartidor.nombre}`);
+    if (!g.repartidor.patente) faltan.push(`patente del furgón de ${g.repartidor.nombre}`);
+  }
+  if (!g.cliente.direccion) faltan.push(`dirección del cliente ${g.cliente.nombre}`);
+  if (!g.cliente.comuna) faltan.push(`comuna del cliente ${g.cliente.nombre}`);
+  return faltan;
+}
+
 /**
  * Arma la guía de despacho electrónica (DTE tipo 52) en la estructura del formato SII,
  * en JSON, como la reciben los proveedores de facturación.
@@ -81,8 +104,13 @@ export function emisorDte(c: ConfigDte) {
  *  - TipoDespacho 2: despacho por cuenta del emisor a las instalaciones del cliente (reparto);
  *                 1: por cuenta del receptor (clientes presenciales que retiran).
  *  - Se cobra lo despachado menos el descuento diario del cliente (ej. 1 kg de la Suegra).
+ *  - Datos del traslado (Res. Ex. SII 144/2026, Patopan = transporte autogestionado con furgones propios):
+ *    chofer, patente, RUT del transportista (= la empresa), destino y fecha de salida y llegada (el mismo día).
+ *    La hora de salida es opcional: se informa la hora de emisión si se emite el mismo día del reparto.
+ *    En producción no se emite si falta alguno; fuera de producción se omite y queda como aviso.
+ *    Quien retira en el local no requiere datos de transporte (resolutivo 15°).
  */
-export function armarGuia52(g: GuiaParaDte, c: ConfigDte) {
+export function armarGuia52(g: GuiaParaDte, c: ConfigDte, ahora = new Date()) {
   const { receptor, dePrueba: sinRut } = receptorDte(g.cliente, c, 'guía electrónica');
 
   const kgCobrados = Math.max(g.kg - g.kgDescuento, 0);
@@ -91,13 +119,29 @@ export function armarGuia52(g: GuiaParaDte, c: ConfigDte) {
   const neto = Math.round(kgCobrados * precioNeto);
   const iva = Math.round(neto * 0.19);
 
+  const fecha = g.fecha.toISOString().slice(0, 10);
   const presencial = g.cliente.modalidad === 'PRESENCIAL';
-  const transporte: Record<string, unknown> = {};
+  const avisos: string[] = [];
+  let transporte: Record<string, unknown> | null = null;
   if (!presencial) {
-    if (g.repartidor?.patente) transporte.Patente = corto(g.repartidor.patente, 8);
-    if (g.repartidor?.rut) transporte.Chofer = { RUTChofer: g.repartidor.rut, NombreChofer: corto(g.repartidor.nombre, 30) };
-    transporte.DirDest = corto(receptor.direccion, 70);
-    transporte.CmnaDest = corto(receptor.comuna, 20);
+    const faltan = datosTrasladoFaltantes(g);
+    if (faltan.length && c.modo === 'produccion') {
+      throw new Error(`Faltan datos del traslado que exige el SII (Res. 144/2026) para la guía N° ${g.id}: ${faltan.join(', ')}.`);
+    }
+    if (faltan.length) avisos.push(`Faltan datos del traslado (Res. 144/2026): ${faltan.join(', ')}.`);
+
+    const salida = enSantiago(ahora);
+    const r = g.repartidor;
+    transporte = {
+      ...(r?.patente ? { Patente: corto(r.patente.replace(/[\s-]/g, '').toUpperCase(), 8) } : {}),
+      RUTTrans: c.emisor.rut,
+      ...(r?.rut ? { Chofer: { RUTChofer: r.rut, NombreChofer: corto(r.nombre, 30) } } : {}),
+      DirDest: corto(g.cliente.direccion || receptor.direccion, 70),
+      CmnaDest: corto(g.cliente.comuna || receptor.comuna, 20),
+      FchSalida: fecha,
+      ...(salida.fecha === fecha ? { HraSalida: salida.hora } : {}),
+      FchLlegada: fecha,
+    };
   }
 
   const detalleTexto =
@@ -105,9 +149,9 @@ export function armarGuia52(g: GuiaParaDte, c: ConfigDte) {
     (g.kgDescuento > 0 ? ` · ${g.kgDescuento} kg sin costo` : '') +
     ` · guía interna N° ${g.id}`;
 
-  const fecha = g.fecha.toISOString().slice(0, 10);
   return {
     receptorDePrueba: sinRut,
+    avisos,
     totales: { neto, iva, total: neto + iva },
     dte: {
       Encabezado: {
@@ -126,7 +170,7 @@ export function armarGuia52(g: GuiaParaDte, c: ConfigDte) {
           DirRecep: corto(receptor.direccion, 70),
           CmnaRecep: corto(receptor.comuna, 20),
         },
-        ...(Object.keys(transporte).length ? { Transporte: transporte } : {}),
+        ...(transporte ? { Transporte: transporte } : {}),
         Totales: { MntNeto: neto, TasaIVA: '19', IVA: iva, MntTotal: neto + iva },
       },
       Detalle: [
