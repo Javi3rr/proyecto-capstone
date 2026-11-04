@@ -147,8 +147,9 @@ export class DespachoService {
     return this.http.get(`/api/dte/guias/${guiaId}/pdf`, { responseType: 'blob' });
   }
 
-  anularGuia(id: number, motivo: string): Observable<Guia> {
-    return this.http.post<Guia>(`/api/guias/${id}/anular`, { motivo });
+  /** anuladaEnSii: confirma que la guía electrónica ya se anuló a mano en el portal del SII o del proveedor */
+  anularGuia(id: number, motivo: string, anuladaEnSii = false): Observable<Guia> {
+    return this.http.post<Guia>(`/api/guias/${id}/anular`, anuladaEnSii ? { motivo, anuladaEnSii } : { motivo });
   }
 
   // ---------- Facturación mensual ----------

@@ -216,9 +216,13 @@ export interface Guia {
   dteError: string | null;
   dtePdfPath: string | null;
   dteEmitidaEn: string | null;
+  /** Cuándo se confirmó que la guía electrónica se anuló a mano en el portal del SII o del proveedor */
+  dteAnuladaEn: string | null;
+  /** Factura mensual que la cobra (null = sin facturar) */
+  facturaMensualId: number | null;
 }
 
-export type EstadoDte = 'NO_ENVIADA' | 'EMITIDA' | 'RECHAZADA';
+export type EstadoDte ='NO_ENVIADA' | 'EMITIDA' | 'RECHAZADA';
 
 export interface EstadoEmisionDte {
   modo: 'simulado' | 'pruebas' | 'produccion';

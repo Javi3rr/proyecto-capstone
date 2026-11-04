@@ -243,6 +243,10 @@ model Guia {
   dteXmlPath       String?         @map("dte_xml_path") @db.VarChar(255)
   dteEmitidaEn     DateTime?       @map("dte_emitida_en")
   dteEmitidaPorId  Int?            @map("dte_emitida_por_id")
+  /// Anulación de la guía electrónica en el SII. Una guía no se anula con nota de crédito ni por la API
+  /// del proveedor: se anula a mano en el portal del SII o del proveedor, y aquí se registra quién lo confirmó y cuándo.
+  dteAnuladaEn     DateTime?       @map("dte_anulada_en")
+  dteAnuladaPorId  Int?            @map("dte_anulada_por_id")
 
   /// Factura mensual que cobra esta guía (null = aún no facturada)
   facturaMensualId Int?            @map("factura_mensual_id")
