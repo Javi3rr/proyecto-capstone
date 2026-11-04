@@ -117,7 +117,7 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
                       <button type="button" class="enlace" [disabled]="trabajando()" (click)="verPdf(g)">PDF</button>
                     }
                     @if (g.dteError) {
-                      <small class="aviso" [title]="g.dteError">⚠ receptor de prueba</small>
+                      <small class="aviso aviso--texto" [title]="g.dteError">⚠ {{ g.dteError }}</small>
                     }
                     @if (g.dteAnuladaEn) {
                       <small class="anulada-sii">Anulada en el SII (manual) · {{ g.dteAnuladaEn | date: 'dd-MM-yyyy HH:mm' }}</small>
@@ -252,6 +252,10 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
       display: block;
       color: var(--pp-alerta);
       font-size: 0.72rem;
+    }
+    .aviso--texto {
+      max-width: 22rem;
+      white-space: normal;
     }
     .anulada-sii {
       display: block;
