@@ -70,6 +70,11 @@ export function leerConfigDte(): ConfigDte {
   };
 }
 
+/** Ambiente que queda guardado en dteAmbiente de cada documento emitido */
+export function nombreAmbiente(modo: ModoDte): 'SIMULADO' | 'PRUEBAS' | 'PRODUCCION' {
+  return modo === 'simulado' ? 'SIMULADO' : modo === 'produccion' ? 'PRODUCCION' : 'PRUEBAS';
+}
+
 /** Problemas de configuración que impiden emitir (vacío = listo) */
 export function problemasConfig(c: ConfigDte): string[] {
   if (c.modo === 'simulado') return [];

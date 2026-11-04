@@ -300,11 +300,18 @@ export interface ResumenFacturacion {
   desde: string;
   hasta: string;
   mesCerrado: boolean;
+  /** Día 10 del mes siguiente (AAAA-MM-DD): último día para emitir las facturas del mes */
+  plazoLegal: string;
+  /** Días que quedan hasta el plazo (negativo = vencido) */
+  diasParaPlazo: number;
   preciosConIva: boolean;
   filas: FilaFacturacion[];
   totales: {
     clientes: number;
+    clientesSinRut: number;
     facturasGeneradas: number;
+    facturasSinEmitir: number;
+    guiasSinFolio: number;
     kg: number;
     montoGuias: number;
     neto: number;

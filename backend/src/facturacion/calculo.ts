@@ -5,6 +5,16 @@ type Num = Prisma.Decimal | number | string;
 
 export const TASA_IVA = 0.19;
 
+/**
+ * Último día para emitir la factura de las guías de un mes 'AAAA-MM':
+ * el día 10 del mes siguiente (art. 55 de la Ley del IVA). Ej.: '2026-10' -> '2026-11-10', '2026-12' -> '2027-01-10'
+ */
+export function plazoLegal(mes: string): string {
+  const [a, m] = mes.split('-').map(Number);
+  const siguiente = new Date(Date.UTC(a, m, 10));
+  return siguiente.toISOString().slice(0, 10);
+}
+
 /** Lo que se necesita de cada guía para facturarla */
 export interface GuiaFacturable {
   kg: Num;

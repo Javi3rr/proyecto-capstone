@@ -1,5 +1,6 @@
 import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { mensajeError } from '../../core/errores';
 import { EstadoEmisionDte, FilaFacturacion, NOMBRE_MODALIDAD, ResumenFacturacion } from '../../core/models';
@@ -15,7 +16,7 @@ function sumarMeses(mes: string, n: number): string {
 /** [DESPACHO] Facturación mensual: una factura con IVA por cliente a partir de las guías del mes */
 @Component({
   selector: 'app-facturacion',
-  imports: [CurrencyPipe, DatePipe, DecimalPipe],
+  imports: [CurrencyPipe, DatePipe, DecimalPipe, RouterLink],
   template: `
     <header class="encabezado">
       <h1>Facturación mensual</h1>
@@ -76,6 +77,27 @@ function sumarMeses(mes: string, n: number): string {
         @if (!d.mesCerrado) {
           <p class="mes-abierto">
             El mes aún no termina: las guías que se emitan después de generar una factura quedarán fuera de ella.
+          </p>
+        } @else if (porGenerar() || d.totales.facturasSinEmitir || d.totales.guiasSinFolio) {
+          <p class="mes-abierto" [class.vencido]="d.diasParaPlazo < 0">
+            @if (d.diasParaPlazo < 0) {
+              Plazo legal vencido: las facturas de este mes debían emitirse a más tardar el {{ d.plazoLegal | date: 'dd-MM-yyyy' : 'UTC' }}.
+            } @else {
+              Plazo legal para emitir las facturas de este mes: {{ d.plazoLegal | date: 'dd-MM-yyyy' : 'UTC' }}
+              ({{ d.diasParaPlazo === 0 ? 'vence hoy' : 'quedan ' + d.diasParaPlazo + ' día(s)' }}).
+            }
+          </p>
+        }
+        @if (d.totales.guiasSinFolio) {
+          <p class="mes-abierto">
+            {{ d.totales.guiasSinFolio }} guía(s) del mes no tienen folio SII aceptado: emítalas en
+            <a routerLink="/despacho/guias">Guías</a> para poder facturar a esos clientes.
+          </p>
+        }
+        @if (d.totales.clientesSinRut) {
+          <p class="mes-abierto">
+            {{ d.totales.clientesSinRut }} cliente(s) sin RUT: en producción no se les puede emitir la factura.
+            Complete su RUT (el personal si no tienen de empresa) en <a routerLink="/despacho/clientes">Clientes</a>.
           </p>
         }
         <p class="pp-texto-suave nota">
@@ -200,7 +222,13 @@ function sumarMeses(mes: string, n: number): string {
                         {{ fa.notaCredito?.dteEstado === 'RECHAZADA' ? 'Reintentar anulación' : 'Anular' }}
                       </button>
                     } @else {
-                      <button type="button" class="pp-btn pp-btn--chico" [disabled]="trabajando() || !f.guiasSinFacturar" (click)="generar(f)">
+                      <button
+                        type="button"
+                        class="pp-btn pp-btn--chico"
+                        [disabled]="trabajando() || !f.guiasSinFacturar || f.guiasSinFolio > 0"
+                        [title]="f.guiasSinFolio ? 'Primero emita en el SII las guías sin folio' : ''"
+                        (click)="generar(f)"
+                      >
                         Generar
                       </button>
                     }
@@ -294,6 +322,13 @@ function sumarMeses(mes: string, n: number): string {
       color: var(--pp-alerta);
       font-weight: 600;
       font-size: 0.86rem;
+    }
+    .mes-abierto.vencido {
+      background: #fdecec;
+      color: var(--pp-error);
+    }
+    .mes-abierto a {
+      color: inherit;
     }
     .nota {
       margin: 0 0 0.8rem;
@@ -425,7 +460,7 @@ export class FacturacionComponent {
   }
 
   protected porGenerar(): number {
-    return this.datos()?.filas.filter((f) => !f.factura && f.guiasSinFacturar > 0).length ?? 0;
+    return this.datos()?.filas.filter((f) => !f.factura && f.guiasSinFacturar > 0 && !f.guiasSinFolio).length ?? 0;
   }
 
   protected porEmitir(): number {

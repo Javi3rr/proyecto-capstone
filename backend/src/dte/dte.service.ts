@@ -140,10 +140,7 @@ export class DteService {
     }
   }
 
-  /**
-   * Emite en el SII la factura mensual (DTE 33), referenciando las guías electrónicas que cobra.
-   * En producción todas sus guías deben estar emitidas en el SII; en simulado/pruebas se referencian las que haya.
-   */
+  /** Emite en el SII la factura mensual (DTE 33), referenciando las guías electrónicas (DTE 52) que cobra */
   async emitirFactura(facturaId: number, usuarioId?: number) {
     const problemas = problemasConfig(this.config);
     if (problemas.length) throw new BadRequestException(`Emisión electrónica no configurada: ${problemas.join(' ')}`);
@@ -159,12 +156,13 @@ export class DteService {
     if (f.estado === 'ANULADA') throw new ConflictException(`La factura N° ${f.id} está anulada`);
     if (f.dteEstado === 'EMITIDA') throw new ConflictException(`La factura N° ${f.id} ya tiene folio ${f.dteFolio} en el SII`);
 
-    // Solo se pueden referenciar guías emitidas en el mismo ambiente (un folio de pruebas no existe en producción)
+    // La factura referencia todas sus guías: deben estar emitidas en el mismo ambiente (un folio de pruebas no existe en producción)
     const conFolio = f.guias.filter((g) => g.dteEstado === 'EMITIDA' && g.dteFolio && g.dteAmbiente === this.proveedor.nombre);
     const sinFolio = f.guias.length - conFolio.length;
-    if (sinFolio > 0 && this.config.modo === 'produccion') {
+    if (sinFolio > 0) {
       throw new BadRequestException(
-        `Hay ${sinFolio} guía(s) de esta factura sin guía electrónica en el SII. Emítalas primero en la pestaña Guías.`,
+        `Hay ${sinFolio} guía(s) de esta factura sin folio SII en el ambiente actual (${this.proveedor.nombre}). ` +
+          'Anule la factura y genérela de nuevo cuando sus guías estén emitidas.',
       );
     }
 
@@ -194,10 +192,6 @@ export class DteService {
     try {
       const r = await this.proveedor.emitir(armado.dte, `patopan-factura-${f.id}-${intento}`, () => this.siguienteFolioSimulado(33));
       const { pdfPath, xmlPath } = await this.guardarArchivos(`factura-${f.id}-folio-${r.folio}`, r);
-      const avisos = [
-        armado.receptorDePrueba ? 'Emitida con receptor de prueba: el cliente no tiene RUT registrado.' : null,
-        sinFolio > 0 ? `${sinFolio} guía(s) sin folio SII en este ambiente no quedaron referenciadas.` : null,
-      ].filter(Boolean);
       const actualizada = await this.prisma.facturaMensual.update({
         where: { id: f.id },
         data: {
@@ -205,7 +199,7 @@ export class DteService {
           dteFolio: r.folio,
           dteAmbiente: this.proveedor.nombre,
           dteToken: r.token?.slice(0, 200) ?? null,
-          dteError: avisos.length ? avisos.join(' ') : null,
+          dteError: armado.receptorDePrueba ? 'Emitida con receptor de prueba: el cliente no tiene RUT registrado.' : null,
           dtePdfPath: pdfPath,
           dteXmlPath: xmlPath,
           dteEmitidaEn: new Date(),

@@ -2,10 +2,10 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { fechaDesdeISO, hoySantiago } from '../common/utils';
-import { leerConfigDte } from '../dte/dte.config';
+import { leerConfigDte, nombreAmbiente } from '../dte/dte.config';
 import { DteService } from '../dte/dte.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { calcularFactura, CalculoFactura, LineaFactura } from './calculo';
+import { calcularFactura, CalculoFactura, LineaFactura, plazoLegal } from './calculo';
 
 /** Primer y último día de un mes 'AAAA-MM' (columnas @db.Date) */
 function rangoMes(mes: string) {
@@ -26,10 +26,14 @@ const NOTA_CREDITO = {
 /**
  * Facturación mensual: a fin de mes cada cliente recibe una factura (DTE 33) por todas sus guías vigentes del mes,
  * con el IVA desglosado. Cada guía queda ligada a su factura, así no se cobra dos veces.
+ * Solo se facturan guías con folio SII aceptado en el ambiente actual (la factura debe referenciarlas).
  */
 @Injectable()
 export class FacturacionService {
-  private readonly preciosConIva = leerConfigDte().preciosConIva;
+  private readonly config = leerConfigDte();
+  private readonly preciosConIva = this.config.preciosConIva;
+  /** Condición de guía facturable: emitida en el SII, en el mismo ambiente que se emitirá la factura */
+  private readonly conFolio = { dteEstado: 'EMITIDA', dteAmbiente: nombreAmbiente(this.config.modo) } as const;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -43,7 +47,10 @@ export class FacturacionService {
     const [guias, facturas] = await Promise.all([
       this.prisma.guia.findMany({
         where: { fecha: { gte: desde, lte: hasta }, estado: 'VIGENTE' },
-        select: { clienteId: true, kg: true, kgDescuento: true, precioKg: true, monto: true, dteEstado: true, facturaMensualId: true },
+        select: {
+          clienteId: true, kg: true, kgDescuento: true, precioKg: true, monto: true,
+          dteEstado: true, dteAmbiente: true, facturaMensualId: true,
+        },
       }),
       this.prisma.facturaMensual.findMany({ where: { periodo: desde }, include: { notaCredito: NOTA_CREDITO }, orderBy: { id: 'asc' } }),
     ]);
@@ -55,9 +62,12 @@ export class FacturacionService {
       orderBy: { nombre: 'asc' },
     });
 
+    const facturable = (g: (typeof guias)[number]) =>
+      g.dteEstado === this.conFolio.dteEstado && g.dteAmbiente === this.conFolio.dteAmbiente;
     const filas = clientes.map((cliente) => {
       const suyas = guias.filter((g) => g.clienteId === cliente.id);
-      const sinFacturar = suyas.filter((g) => g.facturaMensualId === null);
+      const pendientes = suyas.filter((g) => g.facturaMensualId === null);
+      const sinFacturar = pendientes.filter(facturable);
       const factura = facturas.find((f) => f.clienteId === cliente.id && f.estado === 'VIGENTE') ?? null;
       const calculo: CalculoFactura = factura
         ? {
@@ -72,9 +82,9 @@ export class FacturacionService {
       return {
         cliente,
         guias: suyas.length,
-        /** Guías vigentes sin guía electrónica en el SII */
-        guiasSinFolio: suyas.filter((g) => g.dteEstado !== 'EMITIDA').length,
-        /** Guías que no están en ninguna factura (si ya hay factura: guías registradas después de generarla) */
+        /** Guías sin facturar que no se pueden facturar aún: no tienen folio SII aceptado en este ambiente */
+        guiasSinFolio: pendientes.length - sinFacturar.length,
+        /** Guías con folio que no están en ninguna factura (si ya hay factura: guías emitidas después de generarla) */
         guiasSinFacturar: sinFacturar.length,
         ...calculo,
         factura: factura && { ...factura, detalle: undefined },
@@ -86,17 +96,26 @@ export class FacturacionService {
 
     const suma = (k: 'kg' | 'montoGuias' | 'neto' | 'iva' | 'total') =>
       filas.reduce((s, f) => s.plus(f[k]), new Prisma.Decimal(0)).toNumber();
+    const hoy = hoySantiago();
+    const plazo = plazoLegal(mes);
     return {
       mes,
       desde: iso(desde),
       hasta: iso(hasta),
       /** false mientras el mes no termina (aún pueden emitirse guías) */
-      mesCerrado: hoySantiago() > iso(hasta),
+      mesCerrado: hoy > iso(hasta),
+      /** Último día para emitir las facturas del mes (día 10 del mes siguiente) y días que quedan (negativo = vencido) */
+      plazoLegal: plazo,
+      diasParaPlazo: Math.round((fechaDesdeISO(plazo).getTime() - fechaDesdeISO(hoy).getTime()) / 86_400_000),
       preciosConIva: this.preciosConIva,
       filas,
       totales: {
         clientes: filas.length,
+        clientesSinRut: filas.filter((f) => !f.cliente.rut).length,
         facturasGeneradas: filas.filter((f) => f.factura).length,
+        /** Facturas generadas que aún no tienen folio SII */
+        facturasSinEmitir: filas.filter((f) => f.factura && f.factura.dteEstado !== 'EMITIDA').length,
+        guiasSinFolio: filas.reduce((s, f) => s + f.guiasSinFolio, 0),
         kg: suma('kg'),
         montoGuias: suma('montoGuias'),
         neto: suma('neto'),
@@ -114,10 +133,18 @@ export class FacturacionService {
       if (existente) {
         throw new ConflictException(`El cliente ya tiene la factura N° ${existente.id} de ese mes. Anúlela para generarla de nuevo.`);
       }
+      const pendientes = { clienteId, estado: 'VIGENTE', facturaMensualId: null, fecha: { gte: desde, lte: hasta } } as const;
       const guias = await tx.guia.findMany({
-        where: { clienteId, estado: 'VIGENTE', facturaMensualId: null, fecha: { gte: desde, lte: hasta } },
+        where: { ...pendientes, ...this.conFolio },
         select: { id: true, fecha: true, kg: true, kgDescuento: true, precioKg: true, monto: true },
       });
+      const sinFolio = await tx.guia.count({ where: { ...pendientes, NOT: this.conFolio } });
+      if (sinFolio > 0) {
+        // Se factura el mes completo: no se deja una guía afuera solo porque aún no se emite en el SII
+        throw new BadRequestException(
+          `El cliente tiene ${sinFolio} guía(s) del mes sin folio SII aceptado. Emítalas primero en la pestaña Guías.`,
+        );
+      }
       if (guias.length === 0) throw new BadRequestException('El cliente no tiene guías vigentes sin facturar en ese mes');
 
       const c = calcularFactura(guias, this.preciosConIva);

@@ -9,7 +9,7 @@ RUN npm install
 COPY prisma ./prisma
 RUN npx prisma generate
 
-COPY tsconfig.json nest-cli.json ./
+COPY tsconfig.json tsconfig.build.json nest-cli.json ./
 COPY src ./src
 RUN npm run build
 
