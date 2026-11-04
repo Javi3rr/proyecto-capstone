@@ -32,17 +32,21 @@ flowchart LR
         WEB["web<br/>Nginx + Angular<br/>:8080 → :80"]
         API["api<br/>NestJS<br/>:3000"]
         DB[("db<br/>PostgreSQL 16<br/>volumen pgdata")]
-        UP[("volumen uploads<br/>fotos/PDF facturas")]
+        UP[("volumen uploads<br/>fotos/PDF facturas<br/>PDF/XML de los DTE")]
         ADM["adminer (opcional)<br/>:8081"]
     end
 
     BAL["Balanzas etiquetadoras<br/>(Excel de ventas/stock)"]
     IMP["Impresora de guías"]
+    PROV["OpenFactura<br/>(proveedor certificado)"]
+    SII["SII"]
 
     U1 & U2 & U3 -->|HTTP| WEB
     WEB -->|"/api/*"| API
     API --> DB
     API --> UP
+    API -->|"HTTPS: DTE 52 / 33 / 61"| PROV
+    PROV -->|"firma, timbre y envío"| SII
     ADM -.-> DB
     BAL -.->|"importación de archivo (historia de investigación)"| WEB
     WEB -.->|"impresión desde el navegador"| IMP
@@ -67,7 +71,9 @@ backend/src/
 │
 ├── clientes/  repartidores/  precios/        → DESPACHO: maestros
 ├── planilla/  guias/  entrega/              → DESPACHO: operación diaria y entrega del día por repartidor
-├── dte/                                      → DESPACHO: guía de despacho electrónica (DTE 52) vía proveedor con API
+├── dte/                                      → DESPACHO: documentos electrónicos vía proveedor con API:
+│                                                guía de despacho (DTE 52), factura (DTE 33) y nota de crédito (DTE 61)
+├── facturacion/                              → DESPACHO: factura mensual por cliente a partir de las guías del mes
 ├── reportes/                                 → DESPACHO: historial y promedios mensuales
 │
 ├── productos/  proveedores/                  → MESÓN: catálogo (importación/exportación CAS)
@@ -84,6 +90,11 @@ backend/src/
 - **Roles:** `ADMIN` (acceso total), `MESON` y `DESPACHO`.
 - **Auditoría automática:** cada operación que modifica datos queda registrada con usuario, ruta, cuerpo (sin contraseñas), IP, fecha y resultado. También se registran los ingresos (`LOGIN`) y los intentos fallidos (`LOGIN_FALLIDO`).
 - **Datos críticos:** las guías y facturas no se borran ni se editan; solo se anulan con un motivo. El stock se modifica únicamente a través de movimientos (kardex).
+- **Documentos tributarios:** una factura ya emitida en el SII solo se anula en el sistema cuando el SII acepta la nota de crédito que la anula. Una guía electrónica se anula a mano en el portal y el sistema registra quién lo confirmó.
+
+### Pruebas automatizadas
+
+Pruebas unitarias con **Jest** (`*.spec.ts` junto al código, excluidas del build por `tsconfig.build.json`). Cubren la lógica tributaria, que no depende de la base de datos: cálculo de la factura mensual y del plazo legal, armado de los DTE 52, 33 y 61, y las reglas de anulación de guías. Se ejecutan con `npm test` en `backend/`.
 
 ## 5. Arquitectura del frontend (Angular)
 
@@ -108,6 +119,9 @@ frontend/src/app/
 |---|---|---|
 | Formato del Excel de las balanzas | [MESÓN] Investigar modelo y formato de exportación de las balanzas | **Resuelto.** Balanzas CAS CN1-30P; archivos `PLUData` (catálogo) y `ScannerMap` (códigos de barras). Patopan es el catálogo maestro. Ver `informe-balanzas.md`. |
 | Exportación de ventas desde las balanzas | [MESÓN] Importar ventas de la balanza | **Parcial.** Importación por archivo con mapeo de columnas y cierre manual desde el reporte X, mientras no haya un PC conectado a las balanzas. |
-| Guía de despacho electrónica (SII) | [DESPACHO] Emitir la guía en el SII | **Implementado** con un proveedor certificado con API (OpenFactura), módulo `dte/` independiente del proveedor. Modos `simulado`, `pruebas` (sin efecto tributario) y `produccion` (requiere certificado digital, folios CAF y contrato). |
+| Guía de despacho electrónica (SII) | [DESPACHO] Emitir la guía en el SII | **Implementado** con un proveedor certificado con API (OpenFactura), módulo `dte/` independiente del proveedor. Modos `simulado`, `pruebas` (sin efecto tributario) y `produccion` (requiere certificado digital, folios CAF y contrato). Probado en el ambiente de pruebas del proveedor. |
+| Facturación de las guías (DTE 33) | [DESPACHO] Factura mensual por cliente con referencia a sus guías | **Implementado.** Una factura por cliente y mes, solo con guías que tienen folio SII aceptado; aviso del plazo legal (día 10 del mes siguiente). |
+| Anulación de documentos emitidos | [DESPACHO] Factura mensual · Anular guía electrónica | **Facturas:** nota de crédito (DTE 61, CodRef 1). **Guías:** el proveedor rechaza una nota de crédito que referencie un DTE 52 y su API no anula guías, así que se anulan a mano en el portal y el sistema exige confirmarlo. |
+| Resolución SII 154/2025 (guías de despacho) | [DESPACHO] Emitir la guía en el SII | **Pendiente.** OpenFactura ya acepta los nuevos campos; hoy son opcionales (advertencias) y serán obligatorios próximamente. |
 | Tipo de impresora para guías | [DESPACHO] Generar e imprimir una guía por caja | **Definido:** hoja carta, una guía por cliente y vuelta. Falta la prueba en la impresora real. |
 | Precio del kg de pan | [DESPACHO] Configurar el precio del kg | **Resuelto:** $2.000/kg general, con precios especiales por cliente. |
