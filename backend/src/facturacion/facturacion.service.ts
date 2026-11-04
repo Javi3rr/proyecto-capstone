@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { fechaDesdeISO, hoySantiago } from '../common/utils';
 import { leerConfigDte } from '../dte/dte.config';
+import { DteService } from '../dte/dte.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularFactura, CalculoFactura, LineaFactura } from './calculo';
 
@@ -18,6 +19,10 @@ const CLIENTE_FACTURA = {
   select: { id: true, nombre: true, rut: true, razonSocial: true, giro: true, direccion: true, comuna: true, modalidad: true },
 } as const;
 
+const NOTA_CREDITO = {
+  select: { id: true, fecha: true, motivo: true, dteEstado: true, dteFolio: true, dteAmbiente: true, dteError: true, dtePdfPath: true },
+} as const;
+
 /**
  * Facturación mensual: a fin de mes cada cliente recibe una factura (DTE 33) por todas sus guías vigentes del mes,
  * con el IVA desglosado. Cada guía queda ligada a su factura, así no se cobra dos veces.
@@ -29,6 +34,7 @@ export class FacturacionService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
+    private readonly dte: DteService,
   ) {}
 
   /** Una fila por cliente con guías en el mes: su factura (si ya se generó) o el cálculo de la que corresponde */
@@ -39,7 +45,7 @@ export class FacturacionService {
         where: { fecha: { gte: desde, lte: hasta }, estado: 'VIGENTE' },
         select: { clienteId: true, kg: true, kgDescuento: true, precioKg: true, monto: true, dteEstado: true, facturaMensualId: true },
       }),
-      this.prisma.facturaMensual.findMany({ where: { periodo: desde }, orderBy: { id: 'asc' } }),
+      this.prisma.facturaMensual.findMany({ where: { periodo: desde }, include: { notaCredito: NOTA_CREDITO }, orderBy: { id: 'asc' } }),
     ]);
 
     const clienteIds = [...new Set([...guias.map((g) => g.clienteId), ...facturas.map((f) => f.clienteId)])];
@@ -72,7 +78,9 @@ export class FacturacionService {
         guiasSinFacturar: sinFacturar.length,
         ...calculo,
         factura: factura && { ...factura, detalle: undefined },
-        facturasAnuladas: facturas.filter((f) => f.clienteId === cliente.id && f.estado === 'ANULADA').length,
+        facturasAnuladas: facturas
+          .filter((f) => f.clienteId === cliente.id && f.estado === 'ANULADA')
+          .map((f) => ({ id: f.id, dteFolio: f.dteFolio, motivoAnulacion: f.motivoAnulacion, notaCredito: f.notaCredito })),
       };
     });
 
@@ -182,16 +190,22 @@ export class FacturacionService {
           },
           orderBy: [{ fecha: 'asc' }, { vuelta: 'asc' }],
         },
+        notaCredito: NOTA_CREDITO,
       },
     });
     if (!f) throw new NotFoundException('Factura no encontrada');
     return f;
   }
 
-  /** Anula la factura y libera sus guías para volver a facturarlas */
+  /**
+   * Anula la factura y libera sus guías para volver a facturarlas.
+   * Si ya está emitida en el SII, primero se emite la nota de crédito que la anula allá;
+   * si el SII la rechaza, la factura sigue vigente.
+   */
   async anular(id: number, motivo: string, usuarioId?: number) {
     const antes = await this.obtener(id);
     if (antes.estado === 'ANULADA') throw new ConflictException('La factura ya está anulada');
+    await this.dte.emitirNotaCredito(id, motivo, usuarioId);
     await this.prisma.$transaction([
       this.prisma.guia.updateMany({ where: { facturaMensualId: id }, data: { facturaMensualId: null } }),
       this.prisma.facturaMensual.update({

@@ -31,7 +31,7 @@ export class FacturacionController {
   @Post('meses/:mes/generar')
   async generar(@Param('mes') mes: string, @Body() dto: GenerarFacturasDto, @CurrentUser() user: JwtPayload) {
     validarMes(mes);
-    if (dto.clienteId) {
+    if (dto.clienteId !== undefined) {
       const f = await this.facturacion.generar(mes, dto.clienteId, user.sub);
       return { creadas: [f.id], errores: [] };
     }
@@ -65,7 +65,16 @@ export class FacturacionController {
   /** GET /api/facturacion/facturas/3/pdf → PDF oficial con timbre electrónico */
   @Get('facturas/:id/pdf')
   async pdf(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    const a = await this.dte.pdfFactura(id);
+    this.enviarPdf(res, await this.dte.pdfFactura(id));
+  }
+
+  /** GET /api/facturacion/facturas/3/nota-credito/pdf → PDF de la nota de crédito que anuló la factura */
+  @Get('facturas/:id/nota-credito/pdf')
+  async pdfNotaCredito(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
+    this.enviarPdf(res, await this.dte.pdfNotaCredito(id));
+  }
+
+  private enviarPdf(res: Response, a: { ruta: string; nombre: string }) {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="${a.nombre}"`);
     res.setHeader('Cache-Control', 'private, no-store');

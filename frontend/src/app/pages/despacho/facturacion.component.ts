@@ -142,8 +142,16 @@ function sumarMeses(mes: string, n: number): string {
                     } @else {
                       <span class="pp-chip pendiente-chip">Por generar</span>
                     }
-                    @if (f.facturasAnuladas) {
-                      <small class="sub">{{ f.facturasAnuladas }} anulada(s)</small>
+                    @for (an of f.facturasAnuladas; track an.id) {
+                      <small class="sub" [title]="an.motivoAnulacion ?? ''">
+                        Anulada N° {{ an.id }}
+                        @if (an.notaCredito?.dteEstado === 'EMITIDA') {
+                          · NC folio {{ an.notaCredito!.dteFolio }}
+                          @if (an.notaCredito!.dtePdfPath) {
+                            <button type="button" class="enlace" [disabled]="trabajando()" (click)="verPdfNotaCredito(an.id)">PDF</button>
+                          }
+                        }
+                      </small>
                     }
                   </td>
                   <td class="sii-celda">
@@ -155,6 +163,10 @@ function sumarMeses(mes: string, n: number): string {
                         }
                         @if (fa.dteError) {
                           <small class="aviso" [title]="fa.dteError">⚠ {{ fa.dteError }}</small>
+                        }
+                        @if (fa.notaCredito?.dteEstado === 'RECHAZADA') {
+                          <span class="pp-chip anulada-chip">Nota de crédito rechazada</span>
+                          <small class="motivo" [title]="fa.notaCredito!.dteError ?? ''">{{ fa.notaCredito!.dteError }}</small>
                         }
                       } @else {
                         @if (fa.dteEstado === 'RECHAZADA') {
@@ -177,9 +189,15 @@ function sumarMeses(mes: string, n: number): string {
                     }
                   </td>
                   <td class="botones">
-                    @if (f.factura) {
-                      <button type="button" class="pp-btn pp-btn--peligro pp-btn--chico" [disabled]="trabajando()" (click)="anular(f)">
-                        Anular
+                    @if (f.factura; as fa) {
+                      <button
+                        type="button"
+                        class="pp-btn pp-btn--peligro pp-btn--chico"
+                        [disabled]="trabajando() || (fa.dteEstado === 'EMITIDA' && !sii()?.listo)"
+                        [title]="fa.dteEstado === 'EMITIDA' ? 'Emite en el SII una nota de crédito que anula la factura' : ''"
+                        (click)="anular(f)"
+                      >
+                        {{ fa.notaCredito?.dteEstado === 'RECHAZADA' ? 'Reintentar anulación' : 'Anular' }}
                       </button>
                     } @else {
                       <button type="button" class="pp-btn pp-btn--chico" [disabled]="trabajando() || !f.guiasSinFacturar" (click)="generar(f)">
@@ -479,25 +497,37 @@ export class FacturacionComponent {
     const fa = f.factura!;
     const avisoSii =
       fa.dteEstado === 'EMITIDA'
-        ? `\n\nATENCIÓN: ya tiene la factura electrónica folio ${fa.dteFolio}. En el SII se anula con una nota de crédito.`
+        ? `\n\nTiene la factura electrónica folio ${fa.dteFolio}: se emitirá en el SII una nota de crédito que la anula.` +
+          ' Si el SII la rechaza, la factura sigue vigente.'
         : '';
     const motivo = prompt(
-      `Anular factura N° ${fa.id} (${f.cliente.nombre}). Sus guías quedan libres para facturarlas de nuevo.${avisoSii}\nIndique el motivo:`,
+      `Anular factura N° ${fa.id} (${f.cliente.nombre}). Sus guías quedan libres para facturarlas de nuevo.${avisoSii}\n` +
+        'Indique el motivo (va en la nota de crédito y en la auditoría):',
+      fa.notaCredito?.motivo ?? '',
     );
     if (motivo === null) return;
     if (motivo.trim().length < 5) {
       this.error.set('Debe indicar un motivo de al menos 5 caracteres.');
       return;
     }
-    this.ejecutar(this.api.anularFactura(fa.id, motivo.trim()), () => {
-      this.mensaje.set(`Factura N° ${fa.id} anulada. Puede generarla de nuevo.`);
+    this.ejecutar(this.api.anularFactura(fa.id, motivo.trim()), (r) => {
+      const nc = r.notaCredito?.dteEstado === 'EMITIDA' ? ` con la nota de crédito folio ${r.notaCredito.dteFolio}` : '';
+      this.mensaje.set(`Factura N° ${fa.id} anulada${nc}. Puede generarla de nuevo.`);
     });
+  }
+
+  verPdfNotaCredito(facturaId: number): void {
+    this.abrirPdf(this.api.pdfNotaCredito(facturaId));
   }
 
   /** Abre el PDF oficial (con timbre electrónico) que entregó el proveedor */
   verPdf(id: number): void {
+    this.abrirPdf(this.api.pdfFactura(id));
+  }
+
+  private abrirPdf(descarga: Observable<Blob>): void {
     this.trabajando.set(true);
-    this.api.pdfFactura(id).subscribe({
+    descarga.subscribe({
       next: (blob) => {
         this.trabajando.set(false);
         const url = URL.createObjectURL(blob);

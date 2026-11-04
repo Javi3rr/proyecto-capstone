@@ -180,6 +180,11 @@ export class DespachoService {
     return this.http.get(`/api/facturacion/facturas/${id}/pdf`, { responseType: 'blob' });
   }
 
+  /** PDF de la nota de crédito que anuló la factura */
+  pdfNotaCredito(facturaId: number): Observable<Blob> {
+    return this.http.get(`/api/facturacion/facturas/${facturaId}/nota-credito/pdf`, { responseType: 'blob' });
+  }
+
   // ---------- Entrega del día ----------
   entrega(fecha: string): Observable<Entrega> {
     return this.http.get<Entrega>(`/api/entrega/${fecha}`);

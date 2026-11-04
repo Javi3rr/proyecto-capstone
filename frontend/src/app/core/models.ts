@@ -264,6 +264,19 @@ export interface FacturaMensual {
   dteError: string | null;
   dtePdfPath: string | null;
   dteEmitidaEn: string | null;
+  /** Nota de crédito (DTE 61) que la anula en el SII; si quedó RECHAZADA la factura sigue vigente */
+  notaCredito: NotaCredito | null;
+}
+
+export interface NotaCredito {
+  id: number;
+  fecha: string;
+  motivo: string;
+  dteEstado: EstadoDte;
+  dteFolio: number | null;
+  dteAmbiente: string | null;
+  dteError: string | null;
+  dtePdfPath: string | null;
 }
 
 export interface FilaFacturacion {
@@ -279,7 +292,7 @@ export interface FilaFacturacion {
   total: number;
   /** Factura vigente del mes (null = aún no se genera; los montos son el cálculo) */
   factura: FacturaMensual | null;
-  facturasAnuladas: number;
+  facturasAnuladas: { id: number; dteFolio: number | null; motivoAnulacion: string | null; notaCredito: NotaCredito | null }[];
 }
 
 export interface ResumenFacturacion {

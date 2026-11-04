@@ -22,6 +22,7 @@ erDiagram
     CLIENTES ||--o{ NO_PAGOS : "excepcion de cobro"
     CLIENTES ||--o{ FACTURAS_MENSUALES : "recibe"
     FACTURAS_MENSUALES ||--o{ GUIAS : "cobra"
+    FACTURAS_MENSUALES ||--o| NOTAS_CREDITO : "se anula en el SII con"
     REPARTIDORES ||--o{ PAGAS_REPARTIDOR : "recibe"
 
     PROVEEDORES ||--o{ FACTURAS : "emite"
@@ -119,6 +120,17 @@ erDiagram
         enum estado "VIGENTE | ANULADA"
         enum dte_estado "NO_ENVIADA | EMITIDA | RECHAZADA"
         int dte_folio "folio oficial SII (DTE 33)"
+    }
+    NOTAS_CREDITO {
+        int id PK
+        int factura_mensual_id FK,UK "una por factura"
+        date fecha
+        string motivo
+        decimal neto
+        decimal iva
+        decimal total
+        enum dte_estado "NO_ENVIADA | EMITIDA | RECHAZADA"
+        int dte_folio "folio oficial SII (DTE 61)"
     }
     PAGOS {
         int id PK
@@ -224,6 +236,7 @@ erDiagram
 | Un cambio de precio no altera guías emitidas | `precio_kg` se copia en `despachos` y `guias` al momento de emitir |
 | Guía de despacho electrónica (SII) | La guía interna puede "emitirse en el SII" como DTE 52 (IndTraslado 1 = venta, TipoDespacho 2 = reparto / 1 = retiro). Se guarda `dte_estado` (NO_ENVIADA, EMITIDA, RECHAZADA), folio oficial, ambiente, PDF y XML. El cliente necesita RUT (fuera de producción se usa un receptor de prueba) |
 | Facturación mensual (DTE 33) | Una factura vigente por cliente y mes con todas sus guías vigentes del mes. Se agrupa por precio del kg: kg cobrados × precio neto (precio ÷ 1,19 con 2 decimales si el precio incluye IVA); `iva` = 19 % del neto; `total` = neto + IVA. Los montos quedan congelados en `facturas_mensuales` y cada guía apunta a su factura (`guias.factura_mensual_id`), así no se factura dos veces. Una guía facturada no se puede anular sin anular antes la factura; anular la factura libera sus guías. La factura referencia las guías electrónicas (DTE 52) por folio, o con una referencia global si son más de 40 |
+| Anular una factura ya emitida en el SII | Primero se emite la nota de crédito (DTE 61, `CodRef` 1 = anula el documento) con el mismo detalle y montos de la factura; solo si el SII la acepta la factura pasa a `ANULADA` y se liberan sus guías. Si la rechaza, la factura sigue vigente y se puede reintentar (`notas_credito` guarda el intento). Las facturas no enviadas al SII, o con folio de simulado/pruebas de otro ambiente, se anulan sin nota de crédito |
 | Guía y factura no se editan, solo se anulan | `estado` + `motivo_anulacion` (+ quién y cuándo) |
 | Factura sin duplicados | `UNIQUE(proveedor_id, numero)` |
 | Registrar una factura suma al stock | Cada línea **con producto del catálogo** genera un movimiento `ENTRADA_FACTURA` en la misma transacción. Las líneas de productos aún no registrados (`producto_id` null + `descripcion`) no mueven stock. El detalle es opcional |

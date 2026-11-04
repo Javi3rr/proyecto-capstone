@@ -49,9 +49,14 @@ const NOMBRE_ENTIDAD: Record<string, string> = {
   producto: 'Producto',
   proveedor: 'Proveedor',
   factura: 'Factura',
+  'factura-mensual': 'Factura mensual',
   conteo: 'Conteo de inventario',
   ventas: 'Carga de ventas',
   usuario: 'Usuario',
+};
+
+const NOMBRE_SUBRECURSO: Record<string, string> = {
+  'nota-credito': 'Nota de crédito',
 };
 
 /** Campos que no aportan al comparar antes/después */
@@ -445,7 +450,9 @@ export class AuditoriaComponent {
     if (partes[0] === 'jornada') return `${entidad} ${this.fecha(partes[1])}`;
     const nombre = this.nombreEn(r.detalle);
     const id = partes[1] && /^\d+$/.test(partes[1]) ? ` #${partes[1]}` : partes[1] ? ` ${partes.slice(1).join('/')}` : '';
-    return `${entidad}${id}${nombre ? ' · ' + nombre : ''}`;
+    // Documento hijo después del N°. Ej: "factura-mensual/10/nota-credito" -> "Factura mensual #10 · Nota de crédito"
+    const hijo = /^\d+$/.test(partes[1] ?? '') && partes[2] ? NOMBRE_SUBRECURSO[partes[2]] ?? partes.slice(2).join('/') : '';
+    return `${entidad}${id}${hijo ? ' · ' + hijo : ''}${nombre ? ' · ' + nombre : ''}`;
   }
 
   /** Compara antes/después campo a campo. null si el registro no tiene ese formato. */
