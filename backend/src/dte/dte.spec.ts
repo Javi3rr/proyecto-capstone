@@ -1,7 +1,7 @@
 import { calcularFactura } from '../facturacion/calculo';
 import { ConfigDte, ModoDte, nombreAmbiente } from './dte.config';
 import { armarFactura33 } from './factura33';
-import { armarGuia52, ClienteReceptor } from './guia52';
+import { armarGuia52, ClienteReceptor, datosTrasladoFaltantes } from './guia52';
 import { armarNotaCredito61 } from './notaCredito61';
 
 const config = (modo: ModoDte = 'pruebas', preciosConIva = true): ConfigDte => ({
@@ -171,10 +171,67 @@ describe('armarGuia52 (guía de despacho electrónica)', () => {
     expect(totales).toEqual({ neto: 12857, iva: 2443, total: 15300 });
   });
 
-  it('un cliente presencial retira por su cuenta (TipoDespacho 1, sin transporte)', () => {
-    const { dte } = armarGuia52({ ...guia, cliente: { ...guia.cliente, modalidad: 'PRESENCIAL' } }, config());
+  it('un cliente presencial retira por su cuenta (TipoDespacho 1, sin transporte, Res. 144 resolutivo 15°)', () => {
+    const { dte, avisos } = armarGuia52({ ...guia, cliente: { ...guia.cliente, modalidad: 'PRESENCIAL' } }, config('produccion'));
     expect(dte.Encabezado.IdDoc.TipoDespacho).toBe(1);
     expect(dte.Encabezado).not.toHaveProperty('Transporte');
+    expect(avisos).toEqual([]);
+  });
+
+  describe('datos del traslado (Res. SII 144/2026)', () => {
+    // 04-10-2026 11:30 UTC = 08:30 en Santiago (horario de verano, UTC-3)
+    const salidaMismoDia = new Date('2026-10-04T11:30:00Z');
+
+    it('informa chofer, patente, RUT del transportista (la empresa), destino y fechas de salida y llegada', () => {
+      const { dte, avisos } = armarGuia52(guia, config('produccion'), salidaMismoDia);
+      expect(dte.Encabezado.Transporte).toEqual({
+        Patente: 'ABCD12',
+        RUTTrans: '76795561-8',
+        Chofer: { RUTChofer: '11111111-1', NombreChofer: 'Carlos' },
+        DirDest: 'Los Aromos 45',
+        CmnaDest: 'Molina',
+        FchSalida: '2026-10-04',
+        HraSalida: '08:30:00',
+        FchLlegada: '2026-10-04',
+      });
+      expect(avisos).toEqual([]);
+    });
+
+    it('la hora de salida (opcional) solo se informa si se emite el mismo día del reparto', () => {
+      const { dte } = armarGuia52(guia, config(), new Date('2026-10-06T12:00:00Z'));
+      expect(dte.Encabezado.Transporte).toMatchObject({ FchSalida: '2026-10-04', FchLlegada: '2026-10-04' });
+      expect(dte.Encabezado.Transporte).not.toHaveProperty('HraSalida');
+    });
+
+    it('normaliza la patente (sin guion ni espacios, en mayúscula)', () => {
+      const { dte } = armarGuia52({ ...guia, repartidor: { ...guia.repartidor, patente: 'ab-cd 12' } }, config());
+      expect(dte.Encabezado.Transporte).toMatchObject({ Patente: 'ABCD12' });
+    });
+
+    const sinDatos = {
+      ...guia,
+      cliente: { ...guia.cliente, direccion: null, comuna: null },
+      repartidor: { nombre: 'José', rut: null, patente: null },
+    };
+
+    it('en producción no emite una guía de reparto si faltan datos del traslado', () => {
+      expect(() => armarGuia52(sinDatos, config('produccion'))).toThrow(
+        'Faltan datos del traslado que exige el SII (Res. 144/2026) para la guía N° 125: RUT del chofer José, ' +
+          'patente del furgón de José, dirección del cliente Pilar, comuna del cliente Pilar.',
+      );
+    });
+
+    it('fuera de producción la emite sin esos datos y deja un aviso', () => {
+      const { dte, avisos } = armarGuia52(sinDatos, config('pruebas'));
+      expect(dte.Encabezado.Transporte).not.toHaveProperty('Chofer');
+      expect(dte.Encabezado.Transporte).not.toHaveProperty('Patente');
+      expect(dte.Encabezado.Transporte).toMatchObject({ RUTTrans: '76795561-8', FchSalida: '2026-10-04' });
+      expect(avisos[0]).toMatch(/^Faltan datos del traslado \(Res\. 144\/2026\): RUT del chofer José/);
+    });
+
+    it('una guía de reparto sin repartidor asignado también es un dato faltante', () => {
+      expect(datosTrasladoFaltantes({ cliente: guia.cliente, repartidor: null })).toEqual(['repartidor (chofer y patente)']);
+    });
   });
 });
 

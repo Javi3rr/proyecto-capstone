@@ -117,7 +117,7 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
                       <button type="button" class="enlace" [disabled]="trabajando()" (click)="verPdf(g)">PDF</button>
                     }
                     @if (g.dteError) {
-                      <small class="aviso" [title]="g.dteError">⚠ receptor de prueba</small>
+                      <small class="aviso aviso--texto" [title]="g.dteError">⚠ {{ g.dteError }}</small>
                     }
                   } @else if (g.estado === 'VIGENTE') {
                     @if (g.dteEstado === 'RECHAZADA') {
@@ -249,6 +249,10 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
       display: block;
       color: var(--pp-alerta);
       font-size: 0.72rem;
+    }
+    .aviso--texto {
+      max-width: 22rem;
+      white-space: normal;
     }
     .anulada-chip {
       background: #fdecec;

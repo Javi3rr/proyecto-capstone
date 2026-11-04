@@ -80,6 +80,10 @@ export class DteService {
     try {
       const r = await this.proveedor.emitir(armado.dte, `patopan-guia-${g.id}-${intento}`, () => this.siguienteFolioSimulado(52));
       const { pdfPath, xmlPath } = await this.guardarArchivos(`guia-${g.id}-folio-${r.folio}`, r);
+      const avisos = [
+        armado.receptorDePrueba ? 'Emitida con receptor de prueba: el cliente no tiene RUT registrado.' : null,
+        ...armado.avisos,
+      ].filter(Boolean);
       const actualizada = await this.prisma.guia.update({
         where: { id: g.id },
         data: {
@@ -87,7 +91,7 @@ export class DteService {
           dteFolio: r.folio,
           dteAmbiente: this.proveedor.nombre,
           dteToken: r.token?.slice(0, 200) ?? null,
-          dteError: armado.receptorDePrueba ? 'Emitida con receptor de prueba: el cliente no tiene RUT registrado.' : null,
+          dteError: avisos.length ? avisos.join(' ').slice(0, 1000) : null,
           dtePdfPath: pdfPath,
           dteXmlPath: xmlPath,
           dteEmitidaEn: new Date(),
