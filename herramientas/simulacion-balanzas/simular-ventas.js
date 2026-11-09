@@ -23,37 +23,79 @@ const XLSX = require('xlsx');
 
 // ------------------------------------------------------------------ Parámetros del modelo
 
-/** Pan que sale del horno en la mañana (kg, promedio). Se vende hasta las 13:30. */
-const PAN_MANANA_KG = 150;
-/** Horneada de la tarde respecto de la de la mañana (supuesto: no hay dato real) */
-const PAN_TARDE_SOBRE_MANANA = 0.6;
-/** Ajuste por día de la semana (0 = domingo); el promedio es 1 */
-const FACTOR_DIA = { 0: 1.05, 1: 0.97, 2: 0.97, 3: 0.98, 4: 0.98, 5: 1.0, 6: 1.05 };
-/** Feriados: la tarde vende menos */
-const FERIADOS = new Set(['2026-11-01']);
+/**
+ * Jornada según el día (datos de la panadería):
+ *  - Lunes a sábado (07:00–20:15): pan de la mañana ~150 kg, se vende hasta las 13:30; pan de la tarde ~200 kg (la once).
+ *  - Domingo, medio día (07:00–14:30): pan de las 07:00 ~150 kg y pan de las 12:30 ~120 kg.
+ * Cada horneada: hora en que sale del horno, kg y tramos de venta [inicio, fin, intensidad relativa de clientes].
+ */
+const JORNADA = {
+  semana: {
+    hornos: [
+      {
+        nombre: 'de la mañana',
+        sale: '06:30',
+        kg: 150,
+        tramos: [
+          ['07:00', '07:30', 0.6],
+          ['07:30', '09:30', 1.6],
+          ['09:30', '11:30', 0.8],
+          ['11:30', '13:30', 1.1],
+        ],
+      },
+      {
+        nombre: 'de la tarde',
+        sale: '13:30',
+        kg: 200,
+        tramos: [
+          ['13:30', '16:30', 0.5],
+          ['16:30', '17:30', 0.9],
+          ['17:30', '19:45', 1.6],
+          ['19:45', '20:15', 0.7],
+        ],
+      },
+    ],
+    cierre: '20:45',
+  },
+  domingo: {
+    hornos: [
+      {
+        nombre: 'de la mañana',
+        sale: '07:00',
+        kg: 150,
+        tramos: [
+          ['07:00', '08:00', 0.9],
+          ['08:00', '10:30', 1.7],
+          ['10:30', '12:30', 1.1],
+        ],
+      },
+      {
+        nombre: 'del mediodía',
+        sale: '12:30',
+        kg: 120,
+        tramos: [
+          ['12:30', '13:30', 1.6],
+          ['13:30', '14:30', 0.9],
+        ],
+      },
+    ],
+    cierre: '14:45',
+  },
+};
+/** Venta promedio del día (datos de la panadería): lunes a sábado $1.600.000, domingo $1.200.000 */
+const VENTA_DIA = { semana: 1_600_000, domingo: 1_200_000 };
+/** Ajuste por día de la semana (0 = domingo); de lunes a sábado promedia 1 */
+const FACTOR_DIA = { 0: 1, 1: 0.96, 2: 0.96, 3: 0.98, 4: 0.98, 5: 1.04, 6: 1.08 };
 /** Cómo se reparte la horneada entre los PLU de pan al peso */
 const MEZCLA_PAN = { 1: 0.82, 2: 0.1, 4: 0.08 };
 
-/** Horario: [inicio, fin, intensidad relativa de clientes] */
-const TRAMOS_MANANA = [
-  ['07:00', '07:30', 0.6],
-  ['07:30', '09:30', 1.6],
-  ['09:30', '11:30', 0.8],
-  ['11:30', '13:30', 1.1],
-];
-const TRAMOS_TARDE = [
-  ['13:30', '16:30', 0.5],
-  ['16:30', '17:30', 0.9],
-  ['17:30', '19:45', 1.6],
-  ['19:45', '20:15', 0.7],
-];
 const CAMBIO_TURNO = '14:00';
 
 /** Turnos de mesoneras (código de la balanza) y la balanza que usa cada una */
 const TURNOS = {
   semana: { manana: ['1', '2'], tarde: ['3', '4'] },
   sabado: { manana: ['3', '4'], tarde: ['1', '2'] },
-  domingo: { manana: ['1', '3'], tarde: ['2', '4'] },
+  domingo: { manana: ['2', '3'], tarde: ['2', '3'] },
 };
 const BALANZA = { 1: 'B1', 2: 'B2', 3: 'B1', 4: 'B2' };
 /** Probabilidad de que un ticket lleve una venta "Misc." (precio digitado). Parecida para todas. */
@@ -162,33 +204,30 @@ function clienteApi(base) {
 
 // ------------------------------------------------------------------ Generación de ventas
 
+const esDomingo = (fecha) => new Date(`${fecha}T12:00:00Z`).getUTCDay() === 0;
+
 /**
- * Genera las ventas de un día. Devuelve los tickets (con hora, mesonera y líneas), la producción
- * de pan y pastelería, y lo que queda de pan al cierre.
+ * Genera las ventas de un día. Devuelve los tickets (con hora, mesonera y líneas), cada horneada con lo
+ * que salió del horno (pan y, en la primera, la pastelería) y lo que queda de pan y pastelería al cierre.
+ * k escala cuánta mercadería, cecinas, huevos y pastelería lleva cada ticket (el pan lo fijan las horneadas).
  */
-function simularDia(fecha, rnd, cat, panInicial, pastelInicial, correlativo) {
+function simularDia(fecha, rnd, cat, panInicial, pastelInicial, correlativoInicial, k) {
   const dow = new Date(`${fecha}T12:00:00Z`).getUTCDay();
-  const factor = FACTOR_DIA[dow];
-  const turnos = dow === 0 || FERIADOS.has(fecha) ? TURNOS.domingo : dow === 6 ? TURNOS.sabado : TURNOS.semana;
+  const jornada = dow === 0 ? JORNADA.domingo : JORNADA.semana;
+  const turnos = dow === 0 ? TURNOS.domingo : dow === 6 ? TURNOS.sabado : TURNOS.semana;
   const pluPan = Object.keys(MEZCLA_PAN);
 
-  const produccion = { manana: {}, tarde: {} };
+  const hornos = jornada.hornos.map((h) => ({ nombre: h.nombre, sale: h.sale, kg: Math.round(h.kg * rnd.normal(1, 0.03)), produccion: {} }));
   const tickets = [];
   const vendidoPastel = {};
   let pan = { ...panInicial };
 
-  // Pan de la mañana: ~150 kg que salen del horno temprano
-  const hornoManana = Math.round(PAN_MANANA_KG * factor * rnd.normal(1, 0.025));
-  // Pan de la tarde (supuesto): una fracción de la mañana; menos en feriado
-  const hornoTarde = Math.round(PAN_MANANA_KG * PAN_TARDE_SOBRE_MANANA * factor * (FERIADOS.has(fecha) ? 0.75 : 1) * rnd.normal(1, 0.04));
-
-  for (const [periodo, horneada, tramos] of [
-    ['manana', hornoManana, TRAMOS_MANANA],
-    ['tarde', hornoTarde, TRAMOS_TARDE],
-  ]) {
+  for (const [i, horno] of hornos.entries()) {
+    const tramos = jornada.hornos[i].tramos;
+    const primera = i === 0;
     for (const plu of pluPan) {
-      const kg = r3(horneada * MEZCLA_PAN[plu]);
-      produccion[periodo][plu] = kg;
+      const kg = r3(horno.kg * MEZCLA_PAN[plu]);
+      horno.produccion[plu] = kg;
       pan[plu] = r3(pan[plu] + kg);
     }
     // Se vende entre el 93 % y el 98 % de lo disponible; el resto pasa al período siguiente
@@ -201,7 +240,7 @@ function simularDia(fecha, rnd, cat, panInicial, pastelInicial, correlativo) {
     while (quedaPan()) {
       const lineas = [];
       // Pan al peso: está en la mayoría de los tickets
-      if (rnd.r() < (periodo === 'manana' ? 0.84 : 0.8)) {
+      if (rnd.r() < (primera ? 0.84 : 0.8)) {
         const disponibles = pluPan.filter((p) => vendido[p] < meta[p]);
         const plu = rnd.elegir(disponibles, disponibles.map((p) => MEZCLA_PAN[p]));
         const kg = Math.min(kg5g(Math.min(Math.max(rnd.lognormal(0.9, 0.5), 0.15), 4)), kg5g(meta[plu] - vendido[plu]) || 0.15);
@@ -209,23 +248,23 @@ function simularDia(fecha, rnd, cat, panInicial, pastelInicial, correlativo) {
         lineas.push({ plu, cantidad: kg });
       }
       // Pastelería
-      if (rnd.r() < 0.14) {
+      if (rnd.r() < Math.min(0.14 * k, 0.6)) {
         const plu = rnd.elegir(Object.keys(PASTELERIA), Object.values(PASTELERIA));
         const cantidad = rnd.elegir([1, 2, 3, 4, 6], [6, 4, 1.5, 1, 0.5]);
         vendidoPastel[plu] = (vendidoPastel[plu] ?? 0) + cantidad;
         lineas.push({ plu, cantidad });
       }
       // Huevos (por unidad)
-      if (rnd.r() < 0.07) lineas.push({ plu: '5', cantidad: rnd.elegir([1, 2, 3, 6, 10, 12, 30], [1, 2, 1, 4, 2, 3, 1]) });
+      if (rnd.r() < Math.min(0.07 * k, 0.4)) lineas.push({ plu: '5', cantidad: rnd.elegir([1, 2, 3, 6, 10, 12, 30], [1, 2, 1, 4, 2, 3, 1]) });
       // Cecinas y quesos al peso
-      if (rnd.r() < 0.12) {
+      if (rnd.r() < Math.min(0.12 * k, 0.6)) {
         for (let i = 0, n = rnd.elegir([1, 2], [3, 1]); i < n; i++) {
           const p = rnd.elegir(cat.cecinas, cat.pesoCecinas);
           lineas.push({ plu: p.plu, cantidad: kg5g(Math.min(Math.max(rnd.lognormal(0.2, 0.45), 0.08), 1)) });
         }
       }
       // Mercadería
-      for (let i = 0, n = rnd.poisson(0.38); i < n; i++) {
+      for (let j = 0, n = rnd.poisson(0.38 * k); j < n; j++) {
         const p = rnd.elegir(cat.mercaderia, cat.pesoMercaderia);
         lineas.push({ plu: p.plu, cantidad: rnd.elegir([1, 2, 3], [8, 2, 0.5]) });
       }
@@ -248,20 +287,44 @@ function simularDia(fecha, rnd, cat, panInicial, pastelInicial, correlativo) {
   for (const plu of Object.keys(PASTELERIA)) {
     const vendido = vendidoPastel[plu] ?? 0;
     const horneado = Math.max(0, vendido + rnd.entero(2, 6) - pastelInicial[plu]);
-    if (horneado > 0) produccion.manana[plu] = horneado;
+    if (horneado > 0) hornos[0].produccion[plu] = horneado;
     pastel[plu] = pastelInicial[plu] + horneado - vendido;
   }
 
   // Correlativo compartido por todas las balanzas; ~1 % de saltos (tickets anulados)
+  let correlativo = correlativoInicial;
   tickets.sort((x, y) => x.seg - y.seg);
   for (const t of tickets) {
-    if (rnd.r() < 0.01) correlativo.n++;
-    t.numero = correlativo.n++;
+    if (rnd.r() < 0.01) correlativo++;
+    t.numero = correlativo++;
     const turno = t.seg < minutos(CAMBIO_TURNO) * 60 ? turnos.manana : turnos.tarde;
     t.clerk = rnd.r() < 0.55 ? turno[0] : turno[1];
     if (rnd.r() < TASA_MISC[t.clerk]) t.lineas.push({ misc: rnd.elegir(MONTOS_MISC, MONTOS_MISC.map(() => 1)) });
   }
-  return { tickets, produccion, panFinal: pan, pastelFinal: pastel, hornoManana, hornoTarde };
+  return { tickets, hornos, cierre: jornada.cierre, panFinal: pan, pastelFinal: pastel, correlativoFinal: correlativo };
+}
+
+/** Monto vendido de pan al peso (lo fijan las horneadas) */
+const montoPan = (tickets, porPlu) =>
+  tickets.reduce((s, t) => s + t.lineas.reduce((a, l) => a + (MEZCLA_PAN[l.plu] !== undefined ? Math.round(l.cantidad * porPlu.get(String(l.plu)).precio) : 0), 0), 0);
+
+/**
+ * Simula el día buscando que la venta total se acerque a la meta: el pan queda fijo y se ajusta cuánto
+ * de lo demás lleva cada ticket. Cada intento usa la misma semilla del día, así el resultado es reproducible.
+ */
+function ventasDelDia(fecha, semillaDia, cat, porPlu, pan, pastel, correlativo, meta) {
+  let k = 1;
+  let mejor = null;
+  for (let intento = 0; intento < 20; intento++) {
+    const dia = simularDia(fecha, generador(semillaDia + intento), cat, pan, pastel, correlativo, k);
+    const total = filasArchivo(fecha, dia.tickets, porPlu).total;
+    const error = Math.abs(total - meta) / meta;
+    if (!mejor || error < mejor.error) mejor = { dia, error };
+    if (error < 0.01) break;
+    const dePan = montoPan(dia.tickets, porPlu);
+    k = Math.max(0.05, (k * Math.max(meta - dePan, meta * 0.05)) / Math.max(total - dePan, 1));
+  }
+  return mejor.dia;
 }
 
 /** Filas del archivo de ventas del día, como las exportaría el software de las balanzas */
@@ -324,17 +387,28 @@ async function main() {
 
   // Simula toda la semana primero: el inventario inicial depende de lo que se venderá
   const fechas = dias(o.desde, o.hasta);
-  const correlativo = { n: 8140 };
+  let correlativo = 8140;
   let pan = { 1: r3(rnd.entre(5, 9)), 2: r3(rnd.entre(0.8, 1.6)), 4: r3(rnd.entre(0.5, 1.2)) };
   const panInicial = { ...pan };
   let pastel = Object.fromEntries(Object.keys(PASTELERIA).map((plu) => [plu, rnd.entero(2, 5)]));
   const pastelInicial = { ...pastel };
+  // Meta de cada día: venta promedio según el día con variación natural (±3 %), ajustada para que
+  // lunes a sábado promedien VENTA_DIA.semana y los domingos VENTA_DIA.domingo
+  const metas = fechas.map((f) => (esDomingo(f) ? 1 : FACTOR_DIA[new Date(`${f}T12:00:00Z`).getUTCDay()]) * rnd.normal(1, 0.03));
+  for (const domingo of [true, false]) {
+    const idx = fechas.map((f, i) => i).filter((i) => esDomingo(fechas[i]) === domingo);
+    const promedio = idx.reduce((s, i) => s + metas[i], 0) / (idx.length || 1);
+    for (const i of idx) metas[i] = Math.round((metas[i] / promedio) * (domingo ? VENTA_DIA.domingo : VENTA_DIA.semana));
+  }
+
   const semana = [];
-  for (const fecha of fechas) {
-    const dia = simularDia(fecha, rnd, cat, pan, pastel, correlativo);
+  for (const [i, fecha] of fechas.entries()) {
+    const meta = metas[i];
+    const dia = ventasDelDia(fecha, o.semilla + (i + 1) * 7919, cat, porPlu, pan, pastel, correlativo, meta);
     pan = dia.panFinal;
     pastel = dia.pastelFinal;
-    semana.push({ fecha, ...dia });
+    correlativo = dia.correlativoFinal;
+    semana.push({ fecha, meta, ...dia });
   }
 
   // Archivos del día
@@ -347,10 +421,10 @@ async function main() {
     XLSX.utils.book_append_sheet(libro, XLSX.utils.aoa_to_sheet(filas), 'Ventas');
     XLSX.writeFile(libro, path.join(salida, nombre));
     console.log(
-      `${d.fecha}  ${nombre}  tickets ${d.tickets.length}  filas ${filas.length - 2}  total $${total.toLocaleString('es-CL')}` +
-        `  pan horno ${d.hornoManana} + ${d.hornoTarde} kg`,
+      `${d.fecha}  ${nombre}  tickets ${d.tickets.length}  total $${total.toLocaleString('es-CL')} (meta $${d.meta.toLocaleString('es-CL')})` +
+        `  pan ${d.hornos.map((h) => `${h.sale} ${h.kg} kg`).join(' + ')}`,
     );
-    return { fecha: d.fecha, nombre, filas, produccion: d.produccion };
+    return { fecha: d.fecha, nombre, filas, hornos: d.hornos, cierre: d.cierre };
   });
   if (o.soloArchivos) return;
 
@@ -366,11 +440,11 @@ async function main() {
     return { productoId: p.id, stockContado: contado, motivo: 'OTRO', detalle: 'Inventario inicial (toma de inventario)' };
   });
 
-  const sql = ['-- Fechas y horas simuladas de cada conteo y carga de ventas', 'BEGIN;'];
-  const fechar = (tipo, id, fecha, hhmm, observacion) => {
+  const sql = ['-- Fecha y hora de cada conteo y carga de ventas', 'BEGIN;'];
+  const fechar = (tipo, id, fecha, hhmm) => {
     const ts = instanteChile(fecha, hhmm);
     if (tipo === 'CONTEO') sql.push(`UPDATE conteos_inventario SET fecha = '${ts}' WHERE id = ${id};`);
-    else sql.push(`UPDATE importaciones_balanza SET creado_en = '${ts}', observacion = '${observacion}' WHERE id = ${id};`);
+    else sql.push(`UPDATE importaciones_balanza SET creado_en = '${ts}' WHERE id = ${id};`);
     sql.push(`UPDATE movimientos_stock SET creado_en = '${ts}' WHERE origen_tipo = '${tipo}' AND origen_id = ${id};`);
   };
 
@@ -396,23 +470,23 @@ async function main() {
   };
 
   for (const a of archivos) {
-    const cm = await salidaHorno(a.fecha, a.produccion.manana, '06:30', 'de la mañana');
-    const ct = await salidaHorno(a.fecha, a.produccion.tarde, '13:30', 'de la tarde');
+    const conteos = [];
+    for (const h of a.hornos) conteos.push(await salidaHorno(a.fecha, h.produccion, h.sale, h.nombre));
     const cuerpo = { nombreArchivo: a.nombre, lineas: lineasImportacion(a.filas) };
     const revision = await api.post('/ventas/importar', { ...cuerpo, simular: true });
     if (revision.errores.length || revision.advertencias.length) {
       throw new Error(`${a.nombre}: ${JSON.stringify({ errores: revision.errores.slice(0, 3), advertencias: revision.advertencias })}`);
     }
     const r = await api.post('/ventas/importar', { ...cuerpo, simular: false });
-    fechar('IMPORTACION_BALANZA', r.importacionId, a.fecha, '20:45', 'Datos simulados: archivo generado sin acceso a las balanzas reales');
-    console.log(`${a.fecha}  horno N° ${cm}/${ct}  carga N° ${r.importacionId}  $${r.totales.ventas.toLocaleString('es-CL')}`);
+    fechar('IMPORTACION_BALANZA', r.importacionId, a.fecha, a.cierre);
+    console.log(`${a.fecha}  horno N° ${conteos.join('/')}  carga N° ${r.importacionId}  $${r.totales.ventas.toLocaleString('es-CL')}`);
   }
 
   sql.push('COMMIT;');
   fs.writeFileSync(path.join(salida, 'ajustar-fechas.sql'), sql.join('\n') + '\n');
   const negativos = [...(await stockDe()).entries()].filter(([, s]) => s <= 0);
   console.log(negativos.length ? `ATENCIÓN: productos en 0 o negativos: ${negativos.map(([p]) => p).join(', ')}` : 'Stock final: ningún producto en 0 ni negativo.');
-  console.log(`Fechas simuladas: ${path.join(salida, 'ajustar-fechas.sql')}`);
+  console.log(`Fechas y horas: ${path.join(salida, 'ajustar-fechas.sql')}`);
 }
 
 main().catch((e) => {
