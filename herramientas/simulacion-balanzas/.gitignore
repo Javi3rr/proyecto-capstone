@@ -1,0 +1,4 @@
+node_modules/
+package-lock.json
+# Archivos generados (se regeneran con la misma semilla)
+salida/
