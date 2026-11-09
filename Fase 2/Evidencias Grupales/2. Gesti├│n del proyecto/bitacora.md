@@ -1,5 +1,59 @@
 # Bitácora del proyecto Patopan
 
+## Sesión 04-11-2026
+
+### Hecho
+- **PR #2 unido a `main`** (historia #48: facturación mensual y nota de crédito).
+- **Anulación de guías electrónicas ya emitidas** (rama `feature/anulacion-guia-sii`):
+  - Primero se intentó anularlas con una nota de crédito (DTE 61), igual que las facturas. El proveedor la **rechazó** en el ambiente de pruebas: *"El Tipo de Documento referenciado: 52, no puede ser referenciado por un DTE: 61"*. Su API tampoco tiene un endpoint para anular guías.
+  - Solución: **anulación manual registrada**. La guía se anula en el portal del SII o del proveedor; para anularla en el sistema, el usuario confirma que lo hizo y queda registrado quién y cuándo. Los folios del modo simulado no lo requieren.
+  - 6 pruebas automatizadas nuevas (29 en total).
+- **Documentación al día:** README (documentos electrónicos, pruebas, migraciones), arquitectura (módulos `dte/` y `facturacion/`, proveedor externo) y modelo de datos.
+
+### Pendiente
+1. Crear en Trello la tarjeta de la anulación de guías y revisar y unir su PR.
+2. **Resolución SII 154/2025:** OpenFactura ya acepta los nuevos campos de las guías de despacho; hoy son opcionales (solo advertencias), pero "serán obligatorios próximamente". Hay que revisarlos e incorporarlos al DTE 52.
+3. Siguen vigentes los puntos A, B y C de la sesión del 18-10.
+
+
+## Sesión 03-11-2026
+
+### Hecho
+- **Nota de crédito electrónica (DTE 61)** para anular facturas ya emitidas en el SII: primero se emite la nota de crédito (CodRef 1, mismo detalle y montos), y la factura solo se anula si el SII la acepta. Si la rechaza, la factura sigue vigente y se puede reintentar. Probado en el ambiente de pruebas de OpenFactura: factura folio 203777 anulada con la nota de crédito folio 116046.
+- **Brechas de la historia #48 cerradas:**
+  - Solo se factura cuando todas las guías pendientes del cliente tienen folio SII aceptado.
+  - Aviso del plazo legal (día 10 del mes siguiente).
+  - Aviso de clientes sin RUT.
+- **Pruebas automatizadas (Jest):** 23 pruebas unitarias (cálculo de la factura, plazo legal, armado de los DTE 33, 61 y 52). Se corren con `npm test` en `backend/`.
+- La auditoría distingue la emisión de la nota de crédito de la de la factura.
+- GitHub CLI y Trello conectados al asistente. PR #2 abierto; tarjeta #48 movida a Pruebas con el resumen de lo implementado.
+
+### Pendiente
+1. Completar el RUT de los 15 clientes activos que no lo tienen (el personal si no tienen de empresa).
+2. Confirmar con el contador el giro de los clientes particulares (hoy sale "PARTICULAR").
+
+
+## Sesión 02-11-2026
+
+### Hecho
+- **Decisión del cliente:** facturación mensual con referencia a las guías, para **todos** los clientes.
+- **Facturación mensual (DTE 33)**, nueva pestaña *Despacho → Facturación* (rama `feature/48-factura-mensual`):
+  - Una factura por cliente y mes con todas sus guías vigentes, agrupadas por precio del kg: kg cobrados × precio neto, IVA 19 % y total.
+  - Generación por cliente o masiva; emisión en el SII por factura o de todo el mes, con folio, estado, PDF y XML.
+  - La factura referencia los folios de las guías (referencia global si son más de 40). Cada guía queda ligada a su factura, así no se factura dos veces.
+- Primera factura emitida en el ambiente de pruebas de OpenFactura (folio 203777).
+
+
+## Sesión 22-10-2026
+
+### Hecho
+- **Guía de despacho electrónica (DTE 52)** integrada con el SII a través de OpenFactura (PR #1, rama `feature/47-guia-electronica-sii`):
+  - Datos tributarios del cliente: RUT, razón social, giro y comuna.
+  - Modos `simulado` (sin conexión), `pruebas` (ambiente del proveedor, sin efecto tributario) y `produccion`.
+  - Emisión por guía o de todas las del día, con folio oficial, PDF y XML; los rechazos muestran el motivo y se pueden reintentar.
+- Corrección: actividad económica (Acteco) del emisor de prueba y motivo del rechazo visible en pantalla.
+
+
 ## Sesión 18-10-2026
 
 ### Hecho

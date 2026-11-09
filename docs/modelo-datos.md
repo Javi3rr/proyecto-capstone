@@ -105,6 +105,7 @@ erDiagram
         enum dte_estado "NO_ENVIADA | EMITIDA | RECHAZADA"
         int dte_folio "folio oficial SII"
         int factura_mensual_id FK "null = sin facturar"
+        datetime dte_anulada_en "anulada a mano en el SII"
     }
     FACTURAS_MENSUALES {
         int id PK
@@ -237,6 +238,7 @@ erDiagram
 | Guía de despacho electrónica (SII) | La guía interna puede "emitirse en el SII" como DTE 52 (IndTraslado 1 = venta, TipoDespacho 2 = reparto / 1 = retiro). Se guarda `dte_estado` (NO_ENVIADA, EMITIDA, RECHAZADA), folio oficial, ambiente, PDF y XML. El cliente necesita RUT (fuera de producción se usa un receptor de prueba) |
 | Facturación mensual (DTE 33) | Una factura vigente por cliente y mes con todas sus guías vigentes del mes. Solo se factura cuando **todas** sus guías pendientes tienen folio SII aceptado en el ambiente actual (si falta alguna, se pide emitirla primero). Plazo legal: hasta el día 10 del mes siguiente (la pantalla avisa los días que quedan). Se agrupa por precio del kg: kg cobrados × precio neto (precio ÷ 1,19 con 2 decimales si el precio incluye IVA); `iva` = 19 % del neto; `total` = neto + IVA. Los montos quedan congelados en `facturas_mensuales` y cada guía apunta a su factura (`guias.factura_mensual_id`), así no se factura dos veces. Una guía facturada no se puede anular sin anular antes la factura; anular la factura libera sus guías. La factura referencia las guías electrónicas (DTE 52) por folio, o con una referencia global si son más de 40 |
 | Anular una factura ya emitida en el SII | Primero se emite la nota de crédito (DTE 61, `CodRef` 1 = anula el documento) con el mismo detalle y montos de la factura; solo si el SII la acepta la factura pasa a `ANULADA` y se liberan sus guías. Si la rechaza, la factura sigue vigente y se puede reintentar (`notas_credito` guarda el intento). Las facturas no enviadas al SII, o con folio de simulado/pruebas de otro ambiente, se anulan sin nota de crédito |
+| Anular una guía ya emitida en el SII | Una guía de despacho **no** se anula con nota de crédito (el SII rechaza un DTE 61 que referencie un DTE 52) ni por la API del proveedor: se anula a mano en el portal del SII o del proveedor. Para anularla en el sistema el usuario debe confirmar que lo hizo; queda en `guias.dte_anulada_en` / `dte_anulada_por_id`. Los folios del modo simulado no lo requieren |
 | Guía y factura no se editan, solo se anulan | `estado` + `motivo_anulacion` (+ quién y cuándo) |
 | Factura sin duplicados | `UNIQUE(proveedor_id, numero)` |
 | Registrar una factura suma al stock | Cada línea **con producto del catálogo** genera un movimiento `ENTRADA_FACTURA` en la misma transacción. Las líneas de productos aún no registrados (`producto_id` null + `descripcion`) no mueven stock. El detalle es opcional |

@@ -2,7 +2,7 @@
 
 Proyecto de título (Capstone). Es un sistema web para la Panadería Patopan con dos secciones:
 
-- **Despacho:** registro digital del pan que sale con los repartidores, guías impresas por caja, cuadre automático por repartidor y gestión de clientes.
+- **Despacho:** registro digital del pan que sale con los repartidores, guías impresas por caja, cuadre automático por repartidor y gestión de clientes. Emite los documentos tributarios ante el SII: guía de despacho electrónica, factura mensual por cliente con IVA y nota de crédito.
 - **Mesón:** registro de facturas de mercadería, inventario y trazabilidad del stock, integrado con las balanzas etiquetadoras.
 
 | Capa | Tecnología |
@@ -85,28 +85,24 @@ Luego abre **http://localhost:8080**
 | Detener y **borrar la base de datos** | `docker compose down -v` |
 | Ver la BD en el navegador (Adminer) | `docker compose --profile tools up -d adminer` → http://localhost:8081 (servidor `db`) |
 | Probar la API | `curl http://localhost:8080/api/health` |
+| Correr las pruebas automatizadas | `cd backend && npm install && npm test` |
 
 ## 4. Migraciones de base de datos (Prisma)
 
-El esquema está en `backend/prisma/schema.prisma`.
+El esquema está en `backend/prisma/schema.prisma` y las migraciones versionadas en `backend/prisma/migrations/`. **Al arrancar, la API aplica las migraciones pendientes** (`prisma migrate deploy`), así que basta con `docker compose up -d --build` después de traer cambios.
 
-- **Si no hay migraciones** (estado inicial del repositorio), la API sincroniza el esquema al arrancar con `prisma db push`.
-- **Cuando hay migraciones** en `backend/prisma/migrations/`, la API aplica `prisma migrate deploy` al arrancar.
-
-**Crear la primera migración versionada** (recomendado apenas el equipo valide el modelo):
+Para cambiar el modelo:
 
 ```bash
-docker compose down -v                 # parte con la BD vacía
-docker compose up -d db                # levanta solo PostgreSQL (expuesto en localhost:5432)
+docker compose up -d db                # PostgreSQL expuesto en localhost:5432
 cd backend
 npm install
 cp .env.example .env                   # ajusta la clave para que coincida con la del .env raíz
-npx prisma migrate dev --name init     # crea backend/prisma/migrations/<fecha>_init
-cd ..
-docker compose up -d --build           # la API ahora usa "migrate deploy"
+# edita prisma/schema.prisma y luego:
+npx prisma migrate dev --name descripcion_del_cambio
 ```
 
-Para cada cambio posterior del modelo: edita `schema.prisma` → `npx prisma migrate dev --name descripcion_del_cambio` → haz commit de la carpeta `migrations`.
+Haz commit de la carpeta nueva en `migrations/` junto con el cambio de `schema.prisma`.
 
 ## 5. Desarrollo con recarga automática (opcional)
 
@@ -122,7 +118,39 @@ cd backend && npm install && cp .env.example .env && npx prisma generate && npm 
 cd frontend && npm install && npm start
 ```
 
-## 6. Estructura del repositorio
+## 6. Documentos electrónicos (SII)
+
+Los documentos tributarios se emiten a través de un proveedor certificado con API (OpenFactura, de Haulmer), que los firma, timbra y envía al SII. El sistema guarda el folio oficial, el estado, el PDF y el XML de cada documento.
+
+| Documento | Dónde | Cuándo |
+|---|---|---|
+| Guía de despacho (DTE 52) | Despacho → Guías → "Emitir en SII" | Acompaña al pan; se puede emitir una por una o todas las del día. |
+| Factura mensual (DTE 33) | Despacho → Facturación | Una por cliente y mes con todas sus guías del mes. Plazo legal: hasta el día 10 del mes siguiente. Solo se factura cuando todas las guías tienen folio SII. |
+| Nota de crédito (DTE 61) | Despacho → Facturación → "Anular" | Anula en el SII una factura ya emitida. La factura recién se anula cuando el SII acepta la nota. |
+
+Una **guía de despacho ya emitida no se anula con nota de crédito**, porque el SII no lo acepta. Se anula a mano en el portal del SII o del proveedor; luego, al anularla en el sistema, se confirma que se hizo y queda registrado.
+
+El modo se elige con `DTE_MODO` en `.env` (ver `.env.example`):
+
+| `DTE_MODO` | Uso |
+|---|---|
+| `simulado` | Sin conexión: asigna folios de prueba. Para clases y demos. |
+| `pruebas` | Ambiente de desarrollo de OpenFactura, con datos públicos de prueba. Sin efecto tributario. |
+| `produccion` | Emisión real. Requiere contrato con el proveedor, certificado digital, folios (CAF) y los datos del emisor (`DTE_EMISOR_*`). |
+
+En producción cada cliente necesita su RUT (el personal si no tiene de empresa); se completa en Despacho → Clientes.
+
+## 7. Pruebas automatizadas
+
+Pruebas unitarias con Jest de la lógica tributaria: cálculo de la factura, plazo legal, armado de los DTE y reglas de anulación.
+
+```bash
+cd backend
+npm install
+npm test
+```
+
+## 8. Estructura del repositorio
 
 ```
 patopan/
@@ -130,14 +158,17 @@ patopan/
 ├── .env.example            # variables de entorno (copiar a .env)
 ├── backend/                # API NestJS + Prisma
 │   ├── prisma/schema.prisma
+│   ├── prisma/migrations/  # migraciones versionadas (se aplican al arrancar)
 │   ├── prisma/seed.js      # usuarios, repartidores y 40 clientes del cuaderno
-│   └── src/
+│   └── src/                # un módulo por dominio; pruebas en *.spec.ts
 ├── frontend/               # Angular + Nginx
 │   ├── nginx.conf
 │   └── src/app/
 └── docs/                   # arquitectura y modelo de datos
 ```
 
-## 7. Flujo de trabajo con Trello
+## 9. Flujo de trabajo con Trello y GitHub
 
-Cada historia de usuario del tablero tiene un checklist de **criterios de aceptación** y su **DoD**. Las tarjetas avanzan por las columnas Ideas → Backlog → En Análisis → Listo para Desarrollo → En Desarrollo → Pruebas → 🎉 Terminado. Se recomienda una rama de git por tarjeta, por ejemplo `feature/despacho-planilla-diaria`.
+Cada historia de usuario del tablero tiene sus **reglas** o **criterios de aceptación** y su **DoD**. Las tarjetas avanzan por las columnas Ideas → Backlog → En Análisis → Listo para Desarrollo → En Desarrollo → Pruebas → 🎉 Terminado.
+
+Se usa una rama de git por tarjeta, con el número de la tarjeta (por ejemplo `feature/48-factura-mensual`). Al terminar, se abre un Pull Request hacia `main` y la tarjeta pasa a **Pruebas** con un comentario que resume lo implementado.

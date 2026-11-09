@@ -3,6 +3,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsNotEmpty,
@@ -58,4 +59,9 @@ export class AnularGuiaDto {
   @MinLength(5, { message: 'Describa el motivo (mínimo 5 caracteres)' })
   @MaxLength(255)
   motivo!: string;
+
+  /** Si la guía tiene folio SII: el usuario confirma que ya la anuló en el portal del SII o del proveedor */
+  @IsOptional()
+  @IsBoolean()
+  anuladaEnSii?: boolean;
 }

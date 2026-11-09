@@ -116,8 +116,13 @@ export class GuiasService {
     return { registradas: guias.length };
   }
 
-  /** Una guía emitida no se edita: solo se anula, con motivo, quién y cuándo */
-  async anular(id: number, motivo: string, usuarioId?: number) {
+  /**
+   * Una guía emitida no se edita: solo se anula, con motivo, quién y cuándo.
+   * Si ya tiene guía electrónica en el SII, esa guía no se puede anular con nota de crédito ni por la API del
+   * proveedor: se anula a mano en el portal y el usuario debe confirmar que lo hizo (anuladaEnSii); queda registrado.
+   * Los folios del modo simulado no existen fuera del sistema, así que no lo requieren.
+   */
+  async anular(id: number, motivo: string, usuarioId?: number, anuladaEnSii = false) {
     const antes = await this.obtener(id);
     if (antes.estado === 'ANULADA') throw new ConflictException('La guía ya está anulada');
     if (antes.facturaMensualId) {
@@ -125,9 +130,22 @@ export class GuiasService {
         `La guía está incluida en la factura mensual N° ${antes.facturaMensualId}. Anule primero esa factura (pestaña Facturación).`,
       );
     }
+    const enSii = antes.dteEstado === 'EMITIDA' && antes.dteAmbiente !== 'SIMULADO';
+    if (enSii && !anuladaEnSii) {
+      throw new BadRequestException(
+        `La guía N° ${antes.id} tiene la guía electrónica folio ${antes.dteFolio} en el SII. ` +
+          'Anúlela primero en el portal del SII o del proveedor de facturación y luego confirme que lo hizo.',
+      );
+    }
     const despues = await this.prisma.guia.update({
       where: { id },
-      data: { estado: 'ANULADA', motivoAnulacion: motivo, anuladaPorId: usuarioId ?? null, anuladaEn: new Date() },
+      data: {
+        estado: 'ANULADA',
+        motivoAnulacion: motivo,
+        anuladaPorId: usuarioId ?? null,
+        anuladaEn: new Date(),
+        ...(enSii ? { dteAnuladaEn: new Date(), dteAnuladaPorId: usuarioId ?? null } : {}),
+      },
       include: INCLUDE_GUIA,
     });
     await this.audit.registrarCambio(usuarioId, 'ACTUALIZAR', 'guia', id, antes, despues);

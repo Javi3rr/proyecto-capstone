@@ -119,6 +119,9 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
                     @if (g.dteError) {
                       <small class="aviso aviso--texto" [title]="g.dteError">⚠ {{ g.dteError }}</small>
                     }
+                    @if (g.dteAnuladaEn) {
+                      <small class="anulada-sii">Anulada en el SII (manual) · {{ g.dteAnuladaEn | date: 'dd-MM-yyyy HH:mm' }}</small>
+                    }
                   } @else if (g.estado === 'VIGENTE') {
                     @if (g.dteEstado === 'RECHAZADA') {
                       <span class="pp-chip anulada-chip" [title]="g.dteError ?? ''">Rechazada</span>
@@ -254,6 +257,11 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
       max-width: 22rem;
       white-space: normal;
     }
+    .anulada-sii {
+      display: block;
+      color: var(--pp-error);
+      font-size: 0.75rem;
+    }
     .anulada-chip {
       background: #fdecec;
       color: var(--pp-error);
@@ -377,22 +385,33 @@ export class GuiasComponent {
   }
 
   anular(g: Guia): void {
-    const avisoSii =
-      g.dteEstado === 'EMITIDA'
-        ? `\n\nATENCIÓN: esta guía ya tiene la guía electrónica folio ${g.dteFolio}. Además de anularla aquí, debe anularse en el SII.`
-        : '';
-    const motivo = prompt(
-      `Anular guía N° ${g.id} (${g.cliente.nombre}).${avisoSii}\nIndique el motivo (queda registrado en la auditoría):`,
-    );
+    if (g.facturaMensualId) {
+      this.error.set(`La guía N° ${g.id} está incluida en la factura mensual N° ${g.facturaMensualId}. Anule primero esa factura (pestaña Facturación).`);
+      return;
+    }
+    // Una guía electrónica no se anula con nota de crédito ni por API: se anula a mano en el portal (los folios simulados no existen allá)
+    const enSii = g.dteEstado === 'EMITIDA' && g.dteAmbiente !== 'SIMULADO';
+    if (
+      enSii &&
+      !confirm(
+        `La guía N° ${g.id} tiene la guía electrónica folio ${g.dteFolio} en el SII.\n\n` +
+          'Primero anúlela en el portal del SII o del proveedor de facturación (OpenFactura). ' +
+          'Una guía de despacho no se anula con nota de crédito.\n\n¿Ya la anuló en el portal?',
+      )
+    ) {
+      return;
+    }
+    const motivo = prompt(`Anular guía N° ${g.id} (${g.cliente.nombre}).\nIndique el motivo (queda registrado en la auditoría):`);
     if (motivo === null) return;
     if (motivo.trim().length < 5) {
       this.error.set('Debe indicar un motivo de al menos 5 caracteres.');
       return;
     }
     this.mensaje.set(null);
-    this.api.anularGuia(g.id, motivo.trim()).subscribe({
+    this.api.anularGuia(g.id, motivo.trim(), enSii).subscribe({
       next: () => {
-        this.mensaje.set(`Guía N° ${g.id} anulada. Ahora puede corregir los kg en la planilla y emitir una nueva.`);
+        const sii = enSii ? ' Quedó registrado que la guía electrónica se anuló en el SII.' : '';
+        this.mensaje.set(`Guía N° ${g.id} anulada.${sii} Ahora puede corregir los kg en la planilla y emitir una nueva.`);
         this.cargar();
       },
       error: (e) => this.error.set(mensajeError(e)),

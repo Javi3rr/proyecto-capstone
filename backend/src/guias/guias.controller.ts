@@ -59,6 +59,6 @@ export class GuiasController {
   @Post(':id/anular')
   @HttpCode(200)
   anular(@Param('id', ParseIntPipe) id: number, @Body() dto: AnularGuiaDto, @CurrentUser() user: JwtPayload) {
-    return this.guias.anular(id, dto.motivo, user.sub);
+    return this.guias.anular(id, dto.motivo, user.sub, dto.anuladaEnSii === true);
   }
 }
