@@ -1,0 +1,14 @@
+{
+  "name": "patopan-simulacion-balanzas",
+  "version": "1.0.0",
+  "description": "Genera y carga ventas simuladas de las balanzas CAS del mesón (mientras no hay acceso a las balanzas reales)",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "archivos": "node simular-ventas.js --solo-archivos",
+    "cargar": "node simular-ventas.js"
+  },
+  "dependencies": {
+    "xlsx": "0.18.5"
+  }
+}
