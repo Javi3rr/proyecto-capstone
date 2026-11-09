@@ -25,8 +25,8 @@ const XLSX = require('xlsx');
 
 /**
  * Jornada según el día (datos de la panadería):
- *  - Lunes a sábado (07:00–20:15): pan de la mañana ~150 kg, se vende hasta las 13:30; pan de la tarde ~200 kg (la once).
- *  - Domingo, medio día (07:00–14:30): pan de las 07:00 ~150 kg y pan de las 12:30 ~120 kg.
+ *  - Lunes a sábado, venta 07:30–20:15: pan de la mañana ~150 kg, se vende hasta las 13:30; pan de la tarde ~200 kg (la once).
+ *  - Domingo, medio día, venta 08:00–14:30: pan de las 07:00 ~150 kg y pan de las 12:30 ~120 kg.
  * Cada horneada: hora en que sale del horno, kg y tramos de venta [inicio, fin, intensidad relativa de clientes].
  */
 const JORNADA = {
@@ -37,8 +37,8 @@ const JORNADA = {
         sale: '06:30',
         kg: 150,
         tramos: [
-          ['07:00', '07:30', 0.6],
-          ['07:30', '09:30', 1.6],
+          ['07:30', '08:00', 1.0],
+          ['08:00', '09:30', 1.6],
           ['09:30', '11:30', 0.8],
           ['11:30', '13:30', 1.1],
         ],
@@ -64,8 +64,8 @@ const JORNADA = {
         sale: '07:00',
         kg: 150,
         tramos: [
-          ['07:00', '08:00', 0.9],
-          ['08:00', '10:30', 1.7],
+          ['08:00', '08:30', 1.0],
+          ['08:30', '10:30', 1.7],
           ['10:30', '12:30', 1.1],
         ],
       },

@@ -25,12 +25,12 @@ Los títulos coinciden con los que reconoce la pantalla de importación, así qu
 
 | Aspecto | Valor | Origen |
 |---|---|---|
-| Jornada de lunes a sábado | 07:00–20:15. Pan de la mañana: ~150 kg, sale a las 06:30 y se vende hasta las 13:30. Pan de la tarde: ~200 kg (la once), sale a las 13:30. Carga del día a las 20:45. | Panadería (hora de salida de la mañana: supuesto) |
-| Jornada del domingo | Medio día, 07:00–14:30. Pan de las 07:00: ~150 kg. Pan de las 12:30: ~120 kg. Carga a las 14:45. | Panadería |
+| Jornada de lunes a sábado | Venta de 07:30 a 20:15. Pan de la mañana: ~150 kg, sale a las 06:30 y se vende hasta las 13:30. Pan de la tarde: ~200 kg (la once), sale a las 13:30. Carga del día a las 20:45. | Panadería (hora de salida de la mañana: supuesto) |
+| Jornada del domingo | Medio día, venta de 08:00 a 14:30. Pan de las 07:00: ~150 kg. Pan de las 12:30: ~120 kg. Carga a las 14:45. | Panadería |
 | Venta del día | Lunes a sábado promedian **$1.600.000** (viernes y sábado más; lunes y martes menos). Domingo **$1.200.000**. Variación de ±3 %. | Panadería |
 | Cómo se llega al monto | El pan lo fijan las horneadas (se vende el 93–98 % de lo disponible). El resto se ajusta con cuánta pastelería, cecinas, huevos y mercadería lleva cada ticket. | Supuesto |
 | Pan al peso | PLU 1 (82 %), PLU 2 (10 %), PLU 4 (8 %); compras de 0,15 a 4 kg, en múltiplos de 5 g (división de la balanza) | Supuesto |
-| Horas peak | 07:30–09:30 y 17:30–19:45; el domingo, 08:00–10:30 y 12:30–13:30 | Supuesto |
+| Horas peak | 08:00–09:30 y 17:30–19:45; el domingo, 08:30–10:30 y 12:30–13:30 | Supuesto |
 | Mesoneras | Códigos 1–4 (V1–V4) en turnos de mañana y tarde (cambio a las 14:00), que rotan el sábado; el domingo, un solo turno de dos mesoneras. 2 balanzas. | Supuesto |
 | Ventas "Misc. Por Conteo" | 3,5–5,5 % de los tickets, **parecido para todas** (ninguna mesonera con comportamiento anómalo) | Informe de balanzas |
 | Ticket | Correlativo compartido por todas las balanzas, con ~1 % de saltos (tickets anulados) | Informe de balanzas |
