@@ -407,7 +407,7 @@ export class GuiasComponent {
       enSii &&
       !confirm(
         `La guía N° ${g.id} tiene la guía electrónica folio ${g.dteFolio} en el SII.\n\n` +
-          'Primero anúlela en el portal del SII o del proveedor de facturación (OpenFactura). ' +
+          'Primero anúlela en el "Registro de Guías de Despacho" del SII o en el portal del proveedor (OpenFactura). ' +
           'Una guía de despacho no se anula con nota de crédito.\n\n¿Ya la anuló en el portal?',
       )
     ) {

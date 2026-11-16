@@ -1,5 +1,23 @@
 # Bitácora del proyecto Patopan
 
+## Sesión 15 y 16-11-2026
+
+### Hecho
+- **Historia #50, Resolución SII 144/2026** (reemplaza a la 154/2025; vigente desde el 01-11-2026), cerrada:
+  - **Fase 2:** bloque Transporte del DTE 52 con chofer, patente, RUT del transportista (= Patopan, furgones propios), destino y fechas de salida y llegada; en producción no se emite si faltan datos.
+  - **Fase 3:** la guía se envía al SII al imprimir la vuelta, antes de que salga el reparto, y se imprime el PDF timbrado (un solo PDF por vuelta). Si el SII la rechaza, se imprime la guía interna marcada "SIN FOLIO SII" con el motivo y un botón para reintentar (decisión del cliente).
+  - La guía que corrige a una anulada queda enlazada (`guias.reemplaza_a_id`) y su guía electrónica referencia el folio de la anulada (TpoDocRef 52). OpenFactura la aceptó en el ambiente de pruebas.
+  - Los rechazos del proveedor se muestran en palabras simples (por ejemplo, "patente del furgón: Campo es requerido").
+  - **Fase 4:** texto de la anulación ("Registro de Guías de Despacho" del SII), README y arquitectura al día.
+  - 42 pruebas automatizadas aprobadas (13 nuevas desde la sesión del 04-11).
+- **Hallazgo con el proveedor:** desde el 15-11 OpenFactura exige `Patente`, `RUTChofer` y `NombreChofer` en cada guía de reparto. Los datos de los repartidores se cargan en Despacho → Repartidores.
+- **Presentación final** (Fase 3): 25 láminas con la retroalimentación del profesor y la matriz de riesgos (2 altos, 3 medios, 3 bajos).
+- **Trello:** las 9 historias pendientes (8 en Pruebas y la #50) pasan a Terminado con sus criterios de aceptación: 38 de 38 historias terminadas.
+
+### Pendiente
+1. Cargar el RUT y la patente de los repartidores y el RUT de los clientes que faltan (datos de acceso rápido).
+2. Acción del dueño: informar al SII el modelo operacional de transporte antes del 31-01-2027.
+3. Piloto en la sucursal principal; luego, la segunda sucursal.
 ## Sesión 04-11-2026
 
 ### Hecho
