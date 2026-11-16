@@ -248,6 +248,12 @@ model Guia {
   dteAnuladaEn     DateTime?       @map("dte_anulada_en")
   dteAnuladaPorId  Int?            @map("dte_anulada_por_id")
 
+  /// Guía anulada que esta reemplaza (corrección de kg del mismo cliente y vuelta).
+  /// Si la anulada tenía folio SII, la guía electrónica nueva la referencia (Res. SII 144/2026).
+  reemplazaAId     Int?            @unique @map("reemplaza_a_id")
+  reemplazaA       Guia?           @relation("ReemplazoGuia", fields: [reemplazaAId], references: [id])
+  reemplazadaPor   Guia?           @relation("ReemplazoGuia")
+
   /// Factura mensual que cobra esta guía (null = aún no facturada)
   facturaMensualId Int?            @map("factura_mensual_id")
   facturaMensual   FacturaMensual? @relation(fields: [facturaMensualId], references: [id])

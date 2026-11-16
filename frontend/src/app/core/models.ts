@@ -218,6 +218,8 @@ export interface Guia {
   dteEmitidaEn: string | null;
   /** Cuándo se confirmó que la guía electrónica se anuló a mano en el portal del SII o del proveedor */
   dteAnuladaEn: string | null;
+  /** Guía anulada que esta reemplaza (corrección de kg) */
+  reemplazaAId: number | null;
   /** Factura mensual que la cobra (null = sin facturar) */
   facturaMensualId: number | null;
 }
@@ -236,6 +238,11 @@ export interface ResultadoDteDia {
   total: number;
   emitidas: { guiaId: number; folio: number | null }[];
   errores: { guiaId: number; mensaje: string }[];
+}
+
+/** Emisión al imprimir: "omitida" explica por qué no se envió nada (emisión no configurada) */
+export interface ResultadoDteGuias extends ResultadoDteDia {
+  omitida: string | null;
 }
 
 // ---------- Facturación mensual ----------

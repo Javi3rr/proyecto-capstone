@@ -19,6 +19,8 @@ export interface GuiaParaDte {
     comuna: string | null;
   };
   repartidor: { nombre: string; rut: string | null; patente: string | null } | null;
+  /** Guía electrónica anulada que esta reemplaza (corrección de kg): se referencia por su folio */
+  reemplaza?: { folio: number; fecha: Date } | null;
 }
 
 const NOMBRE_VUELTA: Record<number, string> = { 1: 'mañana', 2: 'tarde 1', 3: 'tarde 2' };
@@ -109,6 +111,8 @@ export function datosTrasladoFaltantes(g: Pick<GuiaParaDte, 'cliente' | 'reparti
  *    La hora de salida es opcional: se informa la hora de emisión si se emite el mismo día del reparto.
  *    En producción no se emite si falta alguno; fuera de producción se omite y queda como aviso.
  *    Quien retira en el local no requiere datos de transporte (resolutivo 15°).
+ *  - Una guía que corrige a otra (anulada para cambiar los kg) referencia el folio de la anulada.
+ *    Sin CodRef: ese código solo aplica a notas de crédito y débito.
  */
 export function armarGuia52(g: GuiaParaDte, c: ConfigDte, ahora = new Date()) {
   const { receptor, dePrueba: sinRut } = receptorDte(g.cliente, c, 'guía electrónica');
@@ -184,6 +188,19 @@ export function armarGuia52(g: GuiaParaDte, c: ConfigDte, ahora = new Date()) {
           MontoItem: neto,
         },
       ],
+      ...(g.reemplaza
+        ? {
+            Referencia: [
+              {
+                NroLinRef: 1,
+                TpoDocRef: '52',
+                FolioRef: g.reemplaza.folio,
+                FchRef: g.reemplaza.fecha.toISOString().slice(0, 10),
+                RazonRef: `REEMPLAZA GUIA ANULADA FOLIO ${g.reemplaza.folio}`,
+              },
+            ],
+          }
+        : {}),
     },
   };
 }

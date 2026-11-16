@@ -88,14 +88,40 @@ export class ProveedorOpenFactura implements ProveedorDte {
   }
 }
 
+/** Nombre en palabras simples de los campos del DTE que el proveedor suele observar */
+const NOMBRE_CAMPO: Record<string, string> = {
+  Patente: 'patente del furgón',
+  RUTChofer: 'RUT del chofer',
+  NombreChofer: 'nombre del chofer',
+  RUTTrans: 'RUT del transportista',
+  FchSalida: 'fecha de salida',
+  DirDest: 'dirección de destino',
+  CmnaDest: 'comuna de destino',
+  RUTRecep: 'RUT del cliente',
+  GiroRecep: 'giro del cliente',
+  DirRecep: 'dirección del cliente',
+  CmnaRecep: 'comuna del cliente',
+};
+
+/** Lista de campos observados ([{ field, issue }]) en una línea legible: "patente del furgón: Campo es requerido; …" */
+function detalleLegible(details: unknown): string {
+  if (typeof details === 'string') return details;
+  if (Array.isArray(details) && details.every((d) => d && typeof d === 'object' && 'field' in d)) {
+    return details
+      .map((d: { field: unknown; issue?: unknown }) => `${NOMBRE_CAMPO[String(d.field)] ?? String(d.field)}: ${String(d.issue ?? 'observado')}`)
+      .join('; ');
+  }
+  return JSON.stringify(details);
+}
+
 /** Extrae el mensaje de error de la respuesta del proveedor, sea cual sea su forma */
-function mensajeDe(cuerpo: Record<string, unknown>, texto: string): string {
+export function mensajeDe(cuerpo: Record<string, unknown>, texto: string): string {
   const error = cuerpo.error as Record<string, unknown> | string | undefined;
   const partes: string[] = [];
   if (typeof error === 'string') partes.push(error);
   else if (error && typeof error === 'object') {
     if (error.message) partes.push(String(error.message));
-    if (error.details) partes.push(typeof error.details === 'string' ? error.details : JSON.stringify(error.details));
+    if (error.details) partes.push(detalleLegible(error.details));
   }
   if (cuerpo.message) partes.push(String(cuerpo.message));
   const m = partes.join(' · ') || texto || 'sin detalle';

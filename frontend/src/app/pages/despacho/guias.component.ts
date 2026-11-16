@@ -12,7 +12,8 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
     <header class="encabezado">
       <h1>Guías emitidas</h1>
       <p class="pp-texto-suave">
-        Respaldo digital de cada guía. "Emitir en SII" la convierte en guía de despacho electrónica (DTE 52) con folio oficial.
+        Respaldo digital de cada guía. Al imprimir una vuelta, las guías se envían solas al SII (guía de despacho electrónica,
+        DTE 52) antes de salir. "Emitir en SII" queda para reintentar las que no se pudieron enviar.
       </p>
     </header>
 
@@ -95,7 +96,12 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
           <tbody>
             @for (g of guias(); track g.id) {
               <tr [class.anulada]="g.estado === 'ANULADA'">
-                <td><strong>{{ g.id }}</strong></td>
+                <td>
+                  <strong>{{ g.id }}</strong>
+                  @if (g.reemplazaAId) {
+                    <small class="reemplaza" title="Corrige a la guía anulada; su guía electrónica la referencia">reemplaza N° {{ g.reemplazaAId }}</small>
+                  }
+                </td>
                 <td>{{ g.fecha | date: 'dd-MM-yyyy' : 'UTC' }}</td>
                 <td>{{ nombreVuelta[g.vuelta] }}</td>
                 <td>{{ g.cliente.nombre }}</td>
@@ -235,6 +241,12 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
       font: 600 0.85rem var(--pp-fuente);
       text-decoration: underline;
       cursor: pointer;
+    }
+    .reemplaza {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--pp-texto-suave, #5b6b78);
+      white-space: nowrap;
     }
     .motivo {
       display: block;

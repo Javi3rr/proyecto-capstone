@@ -60,3 +60,51 @@ describe('GuiasService.anular', () => {
     await expect(guias.anular(2, 'Kg mal digitados', 1)).rejects.toThrow(/ya está anulada/);
   });
 });
+
+describe('GuiasService.emitir (guía de una línea de la planilla)', () => {
+  const despacho = (guias: { id: number; estado: string }[]) => ({
+    id: 9,
+    clienteId: 4,
+    repartidorId: 2,
+    vuelta: 1,
+    kg: 12,
+    kgDescuento: 0,
+    precioKg: 1700,
+    monto: 20400,
+    jornada: { fecha: new Date('2026-11-16') },
+    guias,
+  });
+
+  function conDespacho(d: ReturnType<typeof despacho>) {
+    const create = jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 30, ...data }));
+    const prisma = {
+      despacho: { findUnique: jest.fn(async () => d) },
+      guia: { create, findUnique: jest.fn(async () => ({ id: 30 })) },
+    } as unknown as PrismaService;
+    const audit = { registrarCambio: jest.fn() } as unknown as AuditService;
+    return { guias: new GuiasService(prisma, audit), create };
+  }
+
+  it('la primera guía de la vuelta no reemplaza a ninguna', async () => {
+    const { guias, create } = conDespacho(despacho([]));
+    await guias.emitir(9, 1);
+    expect(create.mock.calls[0][0].data).toMatchObject({ reemplazaAId: null, despachoId: 9, kg: 12 });
+  });
+
+  it('después de anular para corregir los kg, la guía nueva reemplaza a la última anulada', async () => {
+    const { guias, create } = conDespacho(
+      despacho([
+        { id: 12, estado: 'ANULADA' },
+        { id: 25, estado: 'ANULADA' },
+      ]),
+    );
+    await guias.emitir(9, 1);
+    expect(create.mock.calls[0][0].data).toMatchObject({ reemplazaAId: 25 });
+  });
+
+  it('no crea otra guía si ya hay una vigente', async () => {
+    const { guias, create } = conDespacho(despacho([{ id: 25, estado: 'VIGENTE' }]));
+    await expect(guias.emitir(9, 1)).rejects.toThrow(ConflictException);
+    expect(create).not.toHaveBeenCalled();
+  });
+});

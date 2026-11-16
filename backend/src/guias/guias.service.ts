@@ -156,9 +156,12 @@ export class GuiasService {
     if (Number(d.kg) <= 0) throw new BadRequestException('No se puede emitir una guía con 0 kg');
     const vigente = d.guias.find((g) => g.estado === 'VIGENTE');
     if (vigente) throw new ConflictException(`Ya existe la guía N° ${vigente.id} vigente para este cliente y vuelta`);
+    // Corrección de kg: la guía nueva reemplaza a la última anulada de este cliente y vuelta
+    const reemplaza = d.guias.filter((g) => g.estado === 'ANULADA').sort((a, b) => b.id - a.id)[0];
 
     const guia = await this.prisma.guia.create({
       data: {
+        reemplazaAId: reemplaza?.id ?? null,
         despachoId: d.id,
         clienteId: d.clienteId,
         repartidorId: d.repartidorId,

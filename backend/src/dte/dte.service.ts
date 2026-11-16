@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { PDFDocument } from 'pdf-lib';
 import { AuditService } from '../audit/audit.service';
 import { fechaDesdeISO, hoySantiago } from '../common/utils';
 import { PrismaService } from '../prisma/prisma.service';
@@ -56,9 +57,16 @@ export class DteService {
       include: {
         cliente: { select: { nombre: true, modalidad: true, rut: true, razonSocial: true, giro: true, direccion: true, comuna: true } },
         repartidor: { select: { nombre: true, rut: true, patente: true } },
+        reemplazaA: { select: { fecha: true, dteEstado: true, dteFolio: true, dteAmbiente: true } },
       },
     });
     if (!g) throw new NotFoundException('Guía no encontrada');
+    // Corrección: se referencia la guía anulada solo si tiene folio en este mismo ambiente (un folio de pruebas no existe en producción)
+    const anulada = g.reemplazaA;
+    const reemplaza =
+      anulada?.dteEstado === 'EMITIDA' && anulada.dteFolio && anulada.dteAmbiente === this.proveedor.nombre
+        ? { folio: anulada.dteFolio, fecha: anulada.fecha }
+        : null;
     if (g.estado === 'ANULADA') throw new ConflictException(`La guía N° ${g.id} está anulada`);
     if (g.dteEstado === 'EMITIDA') throw new ConflictException(`La guía N° ${g.id} ya tiene la guía electrónica folio ${g.dteFolio}`);
 
@@ -72,6 +80,7 @@ export class DteService {
       monto: Number(g.monto),
       cliente: g.cliente,
       repartidor: g.repartidor,
+      reemplaza,
     });
 
     const intento = g.dteIntentos + 1;
@@ -102,7 +111,13 @@ export class DteService {
         usuarioId,
         accion: 'EMITIR_DTE',
         recurso: `guia/${g.id}`,
-        detalle: { folio: r.folio, ambiente: this.proveedor.nombre, totales: armado.totales, receptorDePrueba: armado.receptorDePrueba },
+        detalle: {
+          folio: r.folio,
+          ambiente: this.proveedor.nombre,
+          totales: armado.totales,
+          receptorDePrueba: armado.receptorDePrueba,
+          ...(reemplaza ? { reemplazaFolio: reemplaza.folio } : {}),
+        },
       });
       return actualizada;
     } catch (e) {
@@ -122,6 +137,31 @@ export class DteService {
       select: { id: true },
       orderBy: [{ vuelta: 'asc' }, { id: 'asc' }],
     });
+    return this.emitirVarias(pendientes.map((p) => p.id), usuarioId);
+  }
+
+  /**
+   * Emite en el SII las guías indicadas que aún no tienen folio, antes de imprimir la vuelta (Res. SII 144/2026:
+   * la guía debe estar en el SII antes de que salga el reparto). Si la emisión no está configurada no emite nada
+   * e informa el motivo en "omitida": las guías se imprimen igual, marcadas sin folio.
+   */
+  async emitirGuias(ids: number[], usuarioId?: number) {
+    const problemas = problemasConfig(this.config);
+    if (problemas.length) {
+      return { total: 0, emitidas: [], errores: [], omitida: `Emisión electrónica no configurada: ${problemas.join(' ')}` };
+    }
+    const pendientes = await this.prisma.guia.findMany({
+      where: { id: { in: ids }, estado: 'VIGENTE', dteEstado: { not: 'EMITIDA' } },
+      select: { id: true },
+    });
+    const orden = new Map(ids.map((id, i) => [id, i]));
+    const enOrden = pendientes.map((p) => p.id).sort((a, b) => (orden.get(a) ?? 0) - (orden.get(b) ?? 0));
+    return { ...(await this.emitirVarias(enOrden, usuarioId)), omitida: null };
+  }
+
+  /** Emite una por una, con una pausa entre envíos por el límite de solicitudes del proveedor */
+  private async emitirVarias(ids: number[], usuarioId?: number) {
+    const pendientes = ids.map((id) => ({ id }));
     const emitidas: { guiaId: number; folio: number | null }[] = [];
     const errores: { guiaId: number; mensaje: string }[] = [];
     for (const [i, p] of pendientes.entries()) {
@@ -348,6 +388,35 @@ export class DteService {
     const g = await this.prisma.guia.findUnique({ where: { id: guiaId }, select: { dtePdfPath: true, dteFolio: true } });
     if (!g?.dtePdfPath) throw new NotFoundException('Esta guía no tiene PDF de la guía electrónica');
     return { ruta: this.rutaSegura(g.dtePdfPath), nombre: `guia-despacho-electronica-${g.dteFolio}.pdf` };
+  }
+
+  /**
+   * Un solo PDF con las guías electrónicas timbradas de las guías indicadas, en ese orden, para imprimir la vuelta.
+   * Solo incluye guías vigentes con PDF del proveedor (el modo simulado no entrega PDF).
+   */
+  async pdfLote(ids: number[]): Promise<{ pdf: Buffer; incluidas: number[] }> {
+    const guias = await this.prisma.guia.findMany({
+      where: { id: { in: ids }, estado: 'VIGENTE', dteEstado: 'EMITIDA', dtePdfPath: { not: null } },
+      select: { id: true, dtePdfPath: true },
+    });
+    if (guias.length === 0) throw new NotFoundException('Ninguna de estas guías tiene PDF timbrado');
+    const orden = new Map(ids.map((id, i) => [id, i]));
+    guias.sort((a, b) => (orden.get(a.id) ?? 0) - (orden.get(b.id) ?? 0));
+
+    const salida = await PDFDocument.create();
+    const incluidas: number[] = [];
+    for (const g of guias) {
+      try {
+        const origen = await PDFDocument.load(await readFile(this.rutaSegura(g.dtePdfPath!)));
+        const paginas = await salida.copyPages(origen, origen.getPageIndices());
+        paginas.forEach((p) => salida.addPage(p));
+        incluidas.push(g.id);
+      } catch (e) {
+        this.logger.warn(`No se pudo agregar el PDF de la guía N° ${g.id}: ${e instanceof Error ? e.message : e}`);
+      }
+    }
+    if (incluidas.length === 0) throw new NotFoundException('No se pudieron leer los PDF timbrados');
+    return { pdf: Buffer.from(await salida.save()), incluidas };
   }
 
   /** PDF oficial de la factura electrónica */
