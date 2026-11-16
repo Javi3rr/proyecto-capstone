@@ -1,0 +1,33 @@
+Historias de usuario que estaban en la columna "Pruebas" de Trello
+Tablero: panaderia Trello (https://trello.com/b/y2V28rU9/panaderia-trello)
+Movidas a "Terminado" el 16-11-2026 (solo les faltaban las pruebas).
+
+1. #14 [TRANSVERSAL] Como equipo quiero contenerizar frontend, backend y base de datos con Docker Compose para levantar el sistema con un solo comando
+   https://trello.com/c/lRoDya6w
+
+2. #28 [DESPACHO] Como despachador quiero que el sistema calcule automáticamente el cuadre por repartidor para evitar errores humanos
+   https://trello.com/c/Hu4QrPHR
+
+3. #30 [DESPACHO] Como despachador quiero registrar el pago de cada cliente para saber quién tiene saldos pendientes
+   https://trello.com/c/UOkfBrIW
+
+4. #39 [MESÓN] Como usuario de mesón quiero importar el Excel de ventas de las balanzas para descontar del stock lo vendido
+   https://trello.com/c/3blFnkSk
+
+5. #40 [MESÓN] Como usuario de mesón quiero sincronizar el catálogo y stock del sistema con el Excel compartido de las balanzas para que ambos coincidan
+   https://trello.com/c/9wAU2cAI
+
+6. #44 [MESÓN] Como dueño quiero ver las ventas por mesonera según el código del voucher para detectar inconsistencias
+   https://trello.com/c/KUOcDZkr
+
+7. #45 [DESPACHO] Como despachador quiero descontar la paga diaria del repartidor para saber cuánto debe entregar realmente
+   https://trello.com/c/eaDLndCb
+
+8. #48 [DESPACHO] Como dueño quiero emitir una factura mensual por cliente con referencia a sus guías del mes para cerrar la venta ante el SII
+   https://trello.com/c/4bRu3cAy
+
+También pasó a "Terminado" la historia que estaba "En Desarrollo":
+- #50 [DESPACHO] Como dueño quiero que las guías de despacho cumplan la Resolución SII 144/2026 para que el traslado del pan esté amparado y evitar sanciones
+  https://trello.com/c/b7pnVxf5 (PR #7 unido a main)
+
+Total del proyecto: 38 de 38 historias terminadas.
