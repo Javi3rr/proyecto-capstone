@@ -1,4 +1,4 @@
-import { HttpClient, HttpParams } from '@angular/common/http';
+import { HttpClient, HttpParams, HttpResponse } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable } from 'rxjs';
 import {
@@ -18,6 +18,7 @@ import {
   Repartidor,
   RepartidorForm,
   ResultadoDteDia,
+  ResultadoDteGuias,
   ResultadoDteMes,
   ResumenFacturacion,
   Vuelta,
@@ -140,6 +141,16 @@ export class DespachoService {
 
   emitirDteDia(fecha: string): Observable<ResultadoDteDia> {
     return this.http.post<ResultadoDteDia>('/api/dte/emitir-dia', { fecha });
+  }
+
+  /** Emite en el SII las guías que aún no tienen folio (antes de imprimir la vuelta, Res. SII 144/2026) */
+  emitirDteGuias(ids: number[]): Observable<ResultadoDteGuias> {
+    return this.http.post<ResultadoDteGuias>('/api/dte/guias/emitir', { ids });
+  }
+
+  /** Un solo PDF con las guías electrónicas timbradas; el encabezado X-Guias-Incluidas dice cuáles trae */
+  pdfDteLote(ids: number[]): Observable<HttpResponse<Blob>> {
+    return this.http.get('/api/dte/guias/pdf', { params: { ids: ids.join(',') }, responseType: 'blob', observe: 'response' });
   }
 
   /** PDF oficial (con timbre) descargado con el token de sesión */

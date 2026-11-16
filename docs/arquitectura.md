@@ -90,7 +90,7 @@ backend/src/
 - **Roles:** `ADMIN` (acceso total), `MESON` y `DESPACHO`.
 - **Auditoría automática:** cada operación que modifica datos queda registrada con usuario, ruta, cuerpo (sin contraseñas), IP, fecha y resultado. También se registran los ingresos (`LOGIN`) y los intentos fallidos (`LOGIN_FALLIDO`).
 - **Datos críticos:** las guías y facturas no se borran ni se editan; solo se anulan con un motivo. El stock se modifica únicamente a través de movimientos (kardex).
-- **Documentos tributarios:** una factura ya emitida en el SII solo se anula en el sistema cuando el SII acepta la nota de crédito que la anula. Una guía electrónica se anula a mano en el portal y el sistema registra quién lo confirmó.
+- **Documentos tributarios:** una factura ya emitida en el SII solo se anula en el sistema cuando el SII acepta la nota de crédito que la anula. Una guía electrónica se anula a mano en el "Registro de Guías de Despacho" del SII y el sistema registra quién lo confirmó.
 
 ### Pruebas automatizadas
 
@@ -122,6 +122,6 @@ frontend/src/app/
 | Guía de despacho electrónica (SII) | [DESPACHO] Emitir la guía en el SII | **Implementado** con un proveedor certificado con API (OpenFactura), módulo `dte/` independiente del proveedor. Modos `simulado`, `pruebas` (sin efecto tributario) y `produccion` (requiere certificado digital, folios CAF y contrato). Probado en el ambiente de pruebas del proveedor. |
 | Facturación de las guías (DTE 33) | [DESPACHO] Factura mensual por cliente con referencia a sus guías | **Implementado.** Una factura por cliente y mes, solo con guías que tienen folio SII aceptado; aviso del plazo legal (día 10 del mes siguiente). |
 | Anulación de documentos emitidos | [DESPACHO] Factura mensual · Anular guía electrónica | **Facturas:** nota de crédito (DTE 61, CodRef 1). **Guías:** el proveedor rechaza una nota de crédito que referencie un DTE 52 y su API no anula guías, así que se anulan a mano en el portal y el sistema exige confirmarlo. |
-| Resolución SII 154/2025 (guías de despacho) | [DESPACHO] Emitir la guía en el SII | **Pendiente.** OpenFactura ya acepta los nuevos campos; hoy son opcionales (advertencias) y serán obligatorios próximamente. |
+| Resolución SII 144/2026 (guías de despacho, reemplaza a la 154/2025, vigente desde el 01-11-2026) | [DESPACHO] Guías conforme a la Res. 144/2026 | **Implementado.** Bloque Transporte con chofer, patente, RUT del transportista (= la empresa, furgones propios), destino y fechas; bloqueo en producción si faltan datos. La guía se envía al SII al imprimir la vuelta (antes de salir) y se imprime el PDF timbrado; si falla, sale marcada "SIN FOLIO SII" con reintento. La guía que corrige a una anulada referencia su folio (TpoDocRef 52) y queda enlazada (`guias.reemplaza_a_id`). |
 | Tipo de impresora para guías | [DESPACHO] Generar e imprimir una guía por caja | **Definido:** hoja carta, una guía por cliente y vuelta. Falta la prueba en la impresora real. |
 | Precio del kg de pan | [DESPACHO] Configurar el precio del kg | **Resuelto:** $2.000/kg general, con precios especiales por cliente. |

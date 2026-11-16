@@ -124,11 +124,13 @@ Los documentos tributarios se emiten a través de un proveedor certificado con A
 
 | Documento | Dónde | Cuándo |
 |---|---|---|
-| Guía de despacho (DTE 52) | Despacho → Guías → "Emitir en SII" | Acompaña al pan; se puede emitir una por una o todas las del día. |
+| Guía de despacho (DTE 52) | Despacho → Planilla → imprimir la vuelta | Se envía sola al SII al imprimir la vuelta, antes de que salga el reparto (Res. SII 144/2026), y se imprime el PDF timbrado. Si el SII la rechaza, sale marcada "SIN FOLIO SII" y se reintenta desde la misma pantalla o en Despacho → Guías. |
 | Factura mensual (DTE 33) | Despacho → Facturación | Una por cliente y mes con todas sus guías del mes. Plazo legal: hasta el día 10 del mes siguiente. Solo se factura cuando todas las guías tienen folio SII. |
 | Nota de crédito (DTE 61) | Despacho → Facturación → "Anular" | Anula en el SII una factura ya emitida. La factura recién se anula cuando el SII acepta la nota. |
 
-Una **guía de despacho ya emitida no se anula con nota de crédito**, porque el SII no lo acepta. Se anula a mano en el portal del SII o del proveedor; luego, al anularla en el sistema, se confirma que se hizo y queda registrado.
+Una **guía de despacho ya emitida no se anula con nota de crédito**, porque el SII no lo acepta. Se anula a mano en el "Registro de Guías de Despacho" del SII (o en el portal del proveedor); luego, al anularla en el sistema, se confirma que se hizo y queda registrado. La guía nueva que corrige los kg queda como su reemplazo y su guía electrónica referencia el folio de la anulada.
+
+Datos del traslado (Res. SII 144/2026): cada guía de reparto informa el chofer (nombre y RUT del repartidor), la patente del furgón, el RUT del transportista (la propia empresa) y la dirección y comuna del cliente. Se completan en Despacho → Repartidores y Clientes.
 
 El modo se elige con `DTE_MODO` en `.env` (ver `.env.example`):
 

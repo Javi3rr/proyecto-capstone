@@ -111,7 +111,7 @@ interface Grupo {
                         <button
                           type="button"
                           class="mini"
-                          title="Emitir e imprimir las guías de esta vuelta"
+                          title="Emitir las guías de esta vuelta, enviarlas al SII e imprimirlas"
                           [disabled]="!hayKgEnVuelta(g, v)"
                           (click)="emitirGrupo(g, v)"
                         >
@@ -170,7 +170,7 @@ interface Grupo {
                                 N°{{ c.guia.id }}
                               </button>
                             } @else if (c.despacho && num(c.despacho.kg) > 0) {
-                              <button type="button" class="mini mini--emitir" title="Emitir e imprimir la guía" (click)="emitir(f, c)">Guía</button>
+                              <button type="button" class="mini mini--emitir" title="Emitir la guía, enviarla al SII e imprimirla" (click)="emitir(f, c)">Guía</button>
                             }
                           </div>
                         </td>

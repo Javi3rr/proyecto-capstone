@@ -3,6 +3,7 @@ import { ConfigDte, ModoDte, nombreAmbiente } from './dte.config';
 import { armarFactura33 } from './factura33';
 import { armarGuia52, ClienteReceptor, datosTrasladoFaltantes } from './guia52';
 import { armarNotaCredito61 } from './notaCredito61';
+import { mensajeDe } from './proveedores';
 
 const config = (modo: ModoDte = 'pruebas', preciosConIva = true): ConfigDte => ({
   modo,
@@ -178,6 +179,18 @@ describe('armarGuia52 (guía de despacho electrónica)', () => {
     expect(avisos).toEqual([]);
   });
 
+  it('una guía normal no lleva referencias', () => {
+    const { dte } = armarGuia52(guia, config());
+    expect(dte).not.toHaveProperty('Referencia');
+  });
+
+  it('la guía que corrige a otra anulada referencia su folio (DTE 52), sin CodRef', () => {
+    const { dte } = armarGuia52({ ...guia, reemplaza: { folio: 103663, fecha: new Date('2026-10-04') } }, config());
+    expect(dte.Referencia).toEqual([
+      { NroLinRef: 1, TpoDocRef: '52', FolioRef: 103663, FchRef: '2026-10-04', RazonRef: 'REEMPLAZA GUIA ANULADA FOLIO 103663' },
+    ]);
+  });
+
   describe('datos del traslado (Res. SII 144/2026)', () => {
     // 04-10-2026 11:30 UTC = 08:30 en Santiago (horario de verano, UTC-3)
     const salidaMismoDia = new Date('2026-10-04T11:30:00Z');
@@ -232,6 +245,25 @@ describe('armarGuia52 (guía de despacho electrónica)', () => {
     it('una guía de reparto sin repartidor asignado también es un dato faltante', () => {
       expect(datosTrasladoFaltantes({ cliente: guia.cliente, repartidor: null })).toEqual(['repartidor (chofer y patente)']);
     });
+  });
+});
+
+describe('mensajeDe (errores del proveedor)', () => {
+  it('traduce los campos observados a palabras simples', () => {
+    const cuerpo = {
+      error: {
+        message: 'Validación de Campos',
+        details: [
+          { field: 'Patente', issue: 'Campo es requerido' },
+          { field: 'RUTChofer', issue: 'Campo es requerido' },
+        ],
+      },
+    };
+    expect(mensajeDe(cuerpo, '')).toBe('Validación de Campos · patente del furgón: Campo es requerido; RUT del chofer: Campo es requerido');
+  });
+
+  it('sin forma conocida devuelve el texto de la respuesta', () => {
+    expect(mensajeDe({}, 'Servicio no disponible')).toBe('Servicio no disponible');
   });
 });
 
