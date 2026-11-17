@@ -1,0 +1,86 @@
+# Integración continua de Patopan
+# Se ejecuta en cada push a main y en cada Pull Request hacia main.
+# Un PR solo se une si las tres etapas terminan en verde.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (tipos, migraciones, pruebas y build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      # Base de datos limpia para comprobar que todas las migraciones se aplican en orden
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: patopan_ci
+          POSTGRES_USER: patopan
+          POSTGRES_PASSWORD: patopan_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U patopan -d patopan_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://patopan:patopan_ci@localhost:5432/patopan_ci?schema=public
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+      - name: Generar cliente Prisma
+        run: npx prisma generate
+      - name: Revisar tipos (TypeScript)
+        run: npx tsc --noEmit -p tsconfig.json
+      - name: Aplicar migraciones en una base limpia
+        run: npx prisma migrate deploy
+      - name: Pruebas automatizadas (Jest)
+        run: npm test -- --ci
+      - name: Compilar
+        run: npm run build
+
+  frontend:
+    name: Frontend (build de producción)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      NG_CLI_ANALYTICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
+      - name: Compilar Angular (producción)
+        run: npx ng build --configuration production
+
+  docker:
+    name: Imágenes Docker
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir la imagen del API
+        run: docker build -t patopan-api:ci ./backend
+      - name: Construir la imagen web
+        run: docker build -t patopan-web:ci ./frontend

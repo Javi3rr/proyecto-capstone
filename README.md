@@ -118,6 +118,18 @@ cd backend && npm install && cp .env.example .env && npx prisma generate && npm 
 cd frontend && npm install && npm start
 ```
 
+## Integración continua
+
+Cada push a `main` y cada Pull Request ejecutan el pipeline de GitHub Actions (`.github/workflows/ci.yml`):
+
+| Etapa | Qué revisa |
+|---|---|
+| Backend | Tipos de TypeScript, migraciones aplicadas sobre un PostgreSQL limpio, pruebas automatizadas (Jest) y compilación |
+| Frontend | Compilación de producción de Angular |
+| Imágenes Docker | Construcción de las imágenes del API y web (solo si las dos etapas anteriores pasan) |
+
+Un PR se une a `main` solo con el pipeline en verde.
+
 ## 6. Documentos electrónicos (SII)
 
 Los documentos tributarios se emiten a través de un proveedor certificado con API (OpenFactura, de Haulmer), que los firma, timbra y envía al SII. El sistema guarda el folio oficial, el estado, el PDF y el XML de cada documento.
