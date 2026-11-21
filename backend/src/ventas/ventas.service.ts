@@ -197,6 +197,13 @@ export class VentasService {
       include: { _count: { select: { lineas: true } } },
     });
     const usuarios = await this.nombresUsuarios(cargas.map((c) => c.usuarioId));
+    // El total de cada carga no se guarda: es la suma de sus líneas de venta
+    const sumas = await this.prisma.ventaBalanza.groupBy({
+      by: ['importacionId'],
+      where: { importacionId: { in: cargas.map((c) => c.id) } },
+      _sum: { monto: true },
+    });
+    const totalDe = new Map(sumas.map((s) => [s.importacionId, Number(s._sum.monto ?? 0)]));
     return cargas.map((c) => ({
       id: c.id,
       origen: c.origen,
@@ -204,7 +211,7 @@ export class VentasService {
       desde: iso(c.periodoDesde),
       hasta: iso(c.periodoHasta),
       lineas: c._count.lineas,
-      totalMonto: Number(c.totalMonto),
+      totalMonto: totalDe.get(c.id) ?? 0,
       estado: c.estado,
       motivoAnulacion: c.motivoAnulacion,
       usuario: c.usuarioId ? (usuarios.get(c.usuarioId) ?? null) : null,
@@ -229,7 +236,7 @@ export class VentasService {
       nombreArchivo: c.nombreArchivo,
       desde: iso(c.periodoDesde),
       hasta: iso(c.periodoHasta),
-      totalMonto: Number(c.totalMonto),
+      totalMonto: Math.round(c.lineas.reduce((t, l) => t + Number(l.monto), 0) * 100) / 100,
       observacion: c.observacion,
       estado: c.estado,
       motivoAnulacion: c.motivoAnulacion,
@@ -519,6 +526,19 @@ export class VentasService {
     resumenes: { fecha: string; codigoMesonera: string; monto: number; montoMisc: number; lineasMisc: number; tickets: number | null }[],
     usuarioId?: number,
   ): Promise<number> {
+    // El código de mesonera es clave foránea a usuarios(codigo): todos deben existir antes de guardar
+    const codigos = [...new Set([...lineas.map((l) => l.codigoMesonera), ...resumenes.map((r) => r.codigoMesonera)].filter((c): c is string => !!c))];
+    if (codigos.length) {
+      const existentes = new Set(
+        (await this.prisma.usuario.findMany({ where: { codigo: { in: codigos } }, select: { codigo: true } })).map((u) => u.codigo),
+      );
+      const faltan = codigos.filter((c) => !existentes.has(c));
+      if (faltan.length) {
+        throw new BadRequestException(
+          `Código(s) de mesonera sin usuario: ${faltan.join(', ')}. Asígnelos en Administración → Usuarios y vuelva a importar.`
+        );
+      }
+    }
     const fechas = lineas.map((l) => l.fecha).concat(resumenes.map((r) => r.fecha)).sort();
     const totalMonto = lineas.reduce((t, l) => t + l.monto, 0);
     try {
@@ -529,7 +549,6 @@ export class VentasService {
               ...cabecera,
               periodoDesde: fechaDesdeISO(fechas[0]),
               periodoHasta: fechaDesdeISO(fechas[fechas.length - 1]),
-              totalMonto: new Prisma.Decimal(Math.round(totalMonto * 100) / 100),
               usuarioId: usuarioId ?? null,
             },
           });

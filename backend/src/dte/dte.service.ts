@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigDte, leerConfigDte, problemasConfig } from './dte.config';
 import type { LineaFactura } from '../facturacion/calculo';
 import { armarFactura33 } from './factura33';
+import { camposDte, datosEmision, DTE_SIN_EMITIR, guiaApi, INCLUDE_GUIA_COMPLETA } from './documento-sii';
 import { armarGuia52, GuiaParaDte } from './guia52';
 import { armarNotaCredito61 } from './notaCredito61';
 import { ErrorEmision, ProveedorDte, ProveedorOpenFactura, ProveedorSimulado, ResultadoEmision } from './proveedores';
@@ -55,36 +56,48 @@ export class DteService {
     const g = await this.prisma.guia.findUnique({
       where: { id: guiaId },
       include: {
-        cliente: { select: { nombre: true, modalidad: true, rut: true, razonSocial: true, giro: true, direccion: true, comuna: true } },
-        repartidor: { select: { nombre: true, rut: true, patente: true } },
-        reemplazaA: { select: { fecha: true, dteEstado: true, dteFolio: true, dteAmbiente: true } },
+        documentoSii: true,
+        // Cliente, repartidor, fecha y vuelta vienen del despacho de la guía
+        despacho: {
+          select: {
+            vuelta: true,
+            jornada: { select: { fecha: true } },
+            cliente: { select: { nombre: true, modalidad: true, rut: true, razonSocial: true, giro: true, direccion: true, comuna: true } },
+            repartidor: { select: { nombre: true, rut: true, patente: true } },
+          },
+        },
+        reemplazaA: { select: { documentoSii: true, despacho: { select: { jornada: { select: { fecha: true } } } } } },
       },
     });
     if (!g) throw new NotFoundException('Guía no encontrada');
     // Corrección: se referencia la guía anulada solo si tiene folio en este mismo ambiente (un folio de pruebas no existe en producción)
-    const anulada = g.reemplazaA;
+    const docAnulada = g.reemplazaA?.documentoSii;
     const reemplaza =
-      anulada?.dteEstado === 'EMITIDA' && anulada.dteFolio && anulada.dteAmbiente === this.proveedor.nombre
-        ? { folio: anulada.dteFolio, fecha: anulada.fecha }
+      docAnulada?.estado === 'EMITIDA' && docAnulada.folio && docAnulada.ambiente === this.proveedor.nombre
+        ? { folio: docAnulada.folio, fecha: g.reemplazaA!.despacho.jornada.fecha }
         : null;
     if (g.estado === 'ANULADA') throw new ConflictException(`La guía N° ${g.id} está anulada`);
-    if (g.dteEstado === 'EMITIDA') throw new ConflictException(`La guía N° ${g.id} ya tiene la guía electrónica folio ${g.dteFolio}`);
+    if (g.documentoSii?.estado === 'EMITIDA') {
+      throw new ConflictException(`La guía N° ${g.id} ya tiene la guía electrónica folio ${g.documentoSii.folio}`);
+    }
 
     const armado = this.armar({
       id: g.id,
-      fecha: g.fecha,
-      vuelta: g.vuelta,
+      fecha: g.despacho.jornada.fecha,
+      vuelta: g.despacho.vuelta,
       kg: Number(g.kg),
       kgDescuento: Number(g.kgDescuento),
       precioKg: Number(g.precioKg),
       monto: Number(g.monto),
-      cliente: g.cliente,
-      repartidor: g.repartidor,
+      cliente: g.despacho.cliente,
+      repartidor: g.despacho.repartidor,
       reemplaza,
     });
 
-    const intento = g.dteIntentos + 1;
-    await this.prisma.guia.update({ where: { id: g.id }, data: { dteIntentos: intento } });
+    const doc = await this.registrarIntento(52, g.documentoSii, (documentoSiiId) =>
+      this.prisma.guia.update({ where: { id: g.id }, data: { documentoSiiId } }),
+    );
+    const intento = doc.intentos;
 
     try {
       const r = await this.proveedor.emitir(armado.dte, `patopan-guia-${g.id}-${intento}`, () => this.siguienteFolioSimulado(52));
@@ -93,20 +106,11 @@ export class DteService {
         armado.receptorDePrueba ? 'Emitida con receptor de prueba: el cliente no tiene RUT registrado.' : null,
         ...armado.avisos,
       ].filter(Boolean);
-      const actualizada = await this.prisma.guia.update({
-        where: { id: g.id },
-        data: {
-          dteEstado: 'EMITIDA',
-          dteFolio: r.folio,
-          dteAmbiente: this.proveedor.nombre,
-          dteToken: r.token?.slice(0, 200) ?? null,
-          dteError: avisos.length ? avisos.join(' ').slice(0, 1000) : null,
-          dtePdfPath: pdfPath,
-          dteXmlPath: xmlPath,
-          dteEmitidaEn: new Date(),
-          dteEmitidaPorId: usuarioId ?? null,
-        },
+      await this.prisma.documentoSii.update({
+        where: { id: doc.id },
+        data: datosEmision({ ...r, ambiente: this.proveedor.nombre, error: avisos.length ? avisos.join(' ') : null, pdfPath, xmlPath, usuarioId }),
       });
+      const actualizada = guiaApi(await this.prisma.guia.findUniqueOrThrow({ where: { id: g.id }, include: INCLUDE_GUIA_COMPLETA }));
       await this.audit.registrar({
         usuarioId,
         accion: 'EMITIR_DTE',
@@ -124,7 +128,7 @@ export class DteService {
       const mensaje =
         e instanceof ErrorEmision ? e.message : `Error inesperado al emitir: ${e instanceof Error ? e.message : 'desconocido'}`;
       if (!(e instanceof ErrorEmision)) this.logger.error(mensaje);
-      await this.prisma.guia.update({ where: { id: g.id }, data: { dteEstado: 'RECHAZADA', dteError: mensaje.slice(0, 1000) } });
+      await this.prisma.documentoSii.update({ where: { id: doc.id }, data: { estado: 'RECHAZADA', error: mensaje.slice(0, 1000) } });
       await this.audit.registrar({ usuarioId, accion: 'DTE_RECHAZADO', recurso: `guia/${g.id}`, detalle: { intento, mensaje } });
       throw new BadRequestException(mensaje);
     }
@@ -133,9 +137,9 @@ export class DteService {
   /** Emite todas las guías vigentes del día que aún no están en el SII (una por una, respetando el límite del proveedor) */
   async emitirDia(fecha: string, usuarioId?: number) {
     const pendientes = await this.prisma.guia.findMany({
-      where: { fecha: fechaDesdeISO(fecha), estado: 'VIGENTE', dteEstado: { not: 'EMITIDA' } },
+      where: { despacho: { jornada: { fecha: fechaDesdeISO(fecha) } }, estado: 'VIGENTE', ...DTE_SIN_EMITIR },
       select: { id: true },
-      orderBy: [{ vuelta: 'asc' }, { id: 'asc' }],
+      orderBy: [{ despacho: { vuelta: 'asc' } }, { id: 'asc' }],
     });
     return this.emitirVarias(pendientes.map((p) => p.id), usuarioId);
   }
@@ -151,7 +155,7 @@ export class DteService {
       return { total: 0, emitidas: [], errores: [], omitida: `Emisión electrónica no configurada: ${problemas.join(' ')}` };
     }
     const pendientes = await this.prisma.guia.findMany({
-      where: { id: { in: ids }, estado: 'VIGENTE', dteEstado: { not: 'EMITIDA' } },
+      where: { id: { in: ids }, estado: 'VIGENTE', ...DTE_SIN_EMITIR },
       select: { id: true },
     });
     const orden = new Map(ids.map((id, i) => [id, i]));
@@ -193,15 +197,18 @@ export class DteService {
       where: { id: facturaId },
       include: {
         cliente: { select: { nombre: true, rut: true, razonSocial: true, giro: true, direccion: true, comuna: true } },
-        guias: { select: { id: true, fecha: true, dteEstado: true, dteFolio: true, dteAmbiente: true } },
+        documentoSii: true,
+        guias: { select: { id: true, documentoSii: true, despacho: { select: { jornada: { select: { fecha: true } } } } } },
       },
     });
     if (!f) throw new NotFoundException('Factura no encontrada');
     if (f.estado === 'ANULADA') throw new ConflictException(`La factura N° ${f.id} está anulada`);
-    if (f.dteEstado === 'EMITIDA') throw new ConflictException(`La factura N° ${f.id} ya tiene folio ${f.dteFolio} en el SII`);
+    if (f.documentoSii?.estado === 'EMITIDA') throw new ConflictException(`La factura N° ${f.id} ya tiene folio ${f.documentoSii.folio} en el SII`);
 
     // La factura referencia todas sus guías: deben estar emitidas en el mismo ambiente (un folio de pruebas no existe en producción)
-    const conFolio = f.guias.filter((g) => g.dteEstado === 'EMITIDA' && g.dteFolio && g.dteAmbiente === this.proveedor.nombre);
+    const conFolio = f.guias
+      .map((g) => ({ ...camposDte(g.documentoSii), fecha: g.despacho.jornada.fecha }))
+      .filter((g) => g.dteEstado === 'EMITIDA' && g.dteFolio && g.dteAmbiente === this.proveedor.nombre);
     const sinFolio = f.guias.length - conFolio.length;
     if (sinFolio > 0) {
       throw new BadRequestException(
@@ -230,26 +237,27 @@ export class DteService {
       throw new BadRequestException(e instanceof Error ? e.message : 'No se pudo armar la factura electrónica');
     }
 
-    const intento = f.dteIntentos + 1;
-    await this.prisma.facturaMensual.update({ where: { id: f.id }, data: { dteIntentos: intento } });
+    const doc = await this.registrarIntento(33, f.documentoSii, (documentoSiiId) =>
+      this.prisma.facturaMensual.update({ where: { id: f.id }, data: { documentoSiiId } }),
+    );
+    const intento = doc.intentos;
 
     try {
       const r = await this.proveedor.emitir(armado.dte, `patopan-factura-${f.id}-${intento}`, () => this.siguienteFolioSimulado(33));
       const { pdfPath, xmlPath } = await this.guardarArchivos(`factura-${f.id}-folio-${r.folio}`, r);
-      const actualizada = await this.prisma.facturaMensual.update({
-        where: { id: f.id },
-        data: {
-          dteEstado: 'EMITIDA',
-          dteFolio: r.folio,
-          dteAmbiente: this.proveedor.nombre,
-          dteToken: r.token?.slice(0, 200) ?? null,
-          dteError: armado.receptorDePrueba ? 'Emitida con receptor de prueba: el cliente no tiene RUT registrado.' : null,
-          dtePdfPath: pdfPath,
-          dteXmlPath: xmlPath,
-          dteEmitidaEn: new Date(),
-          dteEmitidaPorId: usuarioId ?? null,
-        },
+      const emitido = await this.prisma.documentoSii.update({
+        where: { id: doc.id },
+        data: datosEmision({
+          ...r,
+          ambiente: this.proveedor.nombre,
+          error: armado.receptorDePrueba ? 'Emitida con receptor de prueba: el cliente no tiene RUT registrado.' : null,
+          pdfPath,
+          xmlPath,
+          usuarioId,
+        }),
       });
+      const { documentoSii: _doc, guias: _guias, cliente: _cliente, ...datosFactura } = f;
+      const actualizada = { ...datosFactura, documentoSiiId: emitido.id, ...camposDte(emitido) };
       await this.audit.registrar({
         usuarioId,
         accion: 'EMITIR_DTE',
@@ -261,7 +269,7 @@ export class DteService {
       const mensaje =
         e instanceof ErrorEmision ? e.message : `Error inesperado al emitir: ${e instanceof Error ? e.message : 'desconocido'}`;
       if (!(e instanceof ErrorEmision)) this.logger.error(mensaje);
-      await this.prisma.facturaMensual.update({ where: { id: f.id }, data: { dteEstado: 'RECHAZADA', dteError: mensaje.slice(0, 1000) } });
+      await this.prisma.documentoSii.update({ where: { id: doc.id }, data: { estado: 'RECHAZADA', error: mensaje.slice(0, 1000) } });
       await this.audit.registrar({ usuarioId, accion: 'DTE_RECHAZADO', recurso: `factura-mensual/${f.id}`, detalle: { intento, mensaje } });
       throw new BadRequestException(mensaje);
     }
@@ -278,18 +286,20 @@ export class DteService {
       where: { id: facturaId },
       include: {
         cliente: { select: { nombre: true, rut: true, razonSocial: true, giro: true, direccion: true, comuna: true } },
-        notaCredito: true,
+        documentoSii: true,
+        notaCredito: { include: { documentoSii: true } },
       },
     });
     if (!f) throw new NotFoundException('Factura no encontrada');
     if (f.estado === 'ANULADA') throw new ConflictException(`La factura N° ${f.id} ya está anulada`);
-    if (f.dteEstado !== 'EMITIDA' || !f.dteFolio) return null;
+    const docFactura = f.documentoSii;
+    if (docFactura?.estado !== 'EMITIDA' || !docFactura.folio) return null;
     // Ya se anuló en el SII en un intento anterior: solo falta anularla en el sistema
-    if (f.notaCredito?.dteEstado === 'EMITIDA') return f.notaCredito;
-    if (f.dteAmbiente !== this.proveedor.nombre) {
-      if (f.dteAmbiente === 'PRODUCCION') {
+    if (f.notaCredito?.documentoSii?.estado === 'EMITIDA') return { ...f.notaCredito, ...camposDte(f.notaCredito.documentoSii) };
+    if (docFactura.ambiente !== this.proveedor.nombre) {
+      if (docFactura.ambiente === 'PRODUCCION') {
         throw new BadRequestException(
-          `La factura N° ${f.id} tiene folio ${f.dteFolio} de producción: su nota de crédito solo se puede emitir con la emisión en producción.`,
+          `La factura N° ${f.id} tiene folio ${docFactura.folio} de producción: su nota de crédito solo se puede emitir con la emisión en producción.`,
         );
       }
       return null;
@@ -297,10 +307,11 @@ export class DteService {
     const problemas = problemasConfig(this.config);
     if (problemas.length) throw new BadRequestException(`Emisión electrónica no configurada: ${problemas.join(' ')}`);
 
-    const datos = { fecha: fechaDesdeISO(hoySantiago()), motivo, neto: f.neto, iva: f.iva, total: f.total, creadoPorId: usuarioId ?? null };
+    // La nota de crédito anula la factura completa: sus montos son los de la factura
+    const datos = { fecha: fechaDesdeISO(hoySantiago()), motivo, creadoPorId: usuarioId ?? null };
     const nc = f.notaCredito
-      ? await this.prisma.notaCredito.update({ where: { id: f.notaCredito.id }, data: datos })
-      : await this.prisma.notaCredito.create({ data: { facturaMensualId: f.id, ...datos } });
+      ? await this.prisma.notaCredito.update({ where: { id: f.notaCredito.id }, data: datos, include: { documentoSii: true } })
+      : await this.prisma.notaCredito.create({ data: { facturaMensualId: f.id, ...datos }, include: { documentoSii: true } });
 
     let armado: ReturnType<typeof armarNotaCredito61>;
     try {
@@ -310,7 +321,7 @@ export class DteService {
           motivo,
           cliente: f.cliente,
           factura: {
-            folio: f.dteFolio,
+            folio: docFactura.folio,
             fechaEmision: f.fechaEmision,
             periodo: f.periodo,
             lineas: f.detalle as unknown as LineaFactura[],
@@ -325,38 +336,38 @@ export class DteService {
       throw new BadRequestException(e instanceof Error ? e.message : 'No se pudo armar la nota de crédito electrónica');
     }
 
-    const intento = nc.dteIntentos + 1;
-    await this.prisma.notaCredito.update({ where: { id: nc.id }, data: { dteIntentos: intento } });
+    const doc = await this.registrarIntento(61, nc.documentoSii, (documentoSiiId) =>
+      this.prisma.notaCredito.update({ where: { id: nc.id }, data: { documentoSiiId } }),
+    );
+    const intento = doc.intentos;
 
     try {
       const r = await this.proveedor.emitir(armado.dte, `patopan-nc-${nc.id}-${intento}`, () => this.siguienteFolioSimulado(61));
       const { pdfPath, xmlPath } = await this.guardarArchivos(`nota-credito-${nc.id}-folio-${r.folio}`, r);
-      const emitida = await this.prisma.notaCredito.update({
-        where: { id: nc.id },
-        data: {
-          dteEstado: 'EMITIDA',
-          dteFolio: r.folio,
-          dteAmbiente: this.proveedor.nombre,
-          dteToken: r.token?.slice(0, 200) ?? null,
-          dteError: armado.receptorDePrueba ? 'Emitida con receptor de prueba: el cliente no tiene RUT registrado.' : null,
-          dtePdfPath: pdfPath,
-          dteXmlPath: xmlPath,
-          dteEmitidaEn: new Date(),
-          dteEmitidaPorId: usuarioId ?? null,
-        },
+      const emitido = await this.prisma.documentoSii.update({
+        where: { id: doc.id },
+        data: datosEmision({
+          ...r,
+          ambiente: this.proveedor.nombre,
+          error: armado.receptorDePrueba ? 'Emitida con receptor de prueba: el cliente no tiene RUT registrado.' : null,
+          pdfPath,
+          xmlPath,
+          usuarioId,
+        }),
       });
       await this.audit.registrar({
         usuarioId,
         accion: 'EMITIR_DTE',
         recurso: `factura-mensual/${f.id}/nota-credito`,
-        detalle: { tipo: 61, folio: r.folio, anulaFolio: f.dteFolio, ambiente: this.proveedor.nombre, totales: armado.totales },
+        detalle: { tipo: 61, folio: r.folio, anulaFolio: docFactura.folio, ambiente: this.proveedor.nombre, totales: armado.totales },
       });
-      return emitida;
+      const { documentoSii: _doc, ...datosNc } = nc;
+      return { ...datosNc, documentoSiiId: emitido.id, ...camposDte(emitido) };
     } catch (e) {
       const mensaje =
         e instanceof ErrorEmision ? e.message : `Error inesperado al emitir: ${e instanceof Error ? e.message : 'desconocido'}`;
       if (!(e instanceof ErrorEmision)) this.logger.error(mensaje);
-      await this.prisma.notaCredito.update({ where: { id: nc.id }, data: { dteEstado: 'RECHAZADA', dteError: mensaje.slice(0, 1000) } });
+      await this.prisma.documentoSii.update({ where: { id: doc.id }, data: { estado: 'RECHAZADA', error: mensaje.slice(0, 1000) } });
       await this.audit.registrar({ usuarioId, accion: 'DTE_RECHAZADO', recurso: `factura-mensual/${f.id}/nota-credito`, detalle: { intento, mensaje } });
       throw new BadRequestException(`Nota de crédito rechazada (la factura sigue vigente): ${mensaje}`);
     }
@@ -365,7 +376,7 @@ export class DteService {
   /** Emite todas las facturas vigentes del mes ('AAAA-MM') que aún no están en el SII */
   async emitirFacturasMes(mes: string, usuarioId?: number) {
     const pendientes = await this.prisma.facturaMensual.findMany({
-      where: { periodo: fechaDesdeISO(`${mes}-01`), estado: 'VIGENTE', dteEstado: { not: 'EMITIDA' } },
+      where: { periodo: fechaDesdeISO(`${mes}-01`), estado: 'VIGENTE', ...DTE_SIN_EMITIR },
       select: { id: true },
       orderBy: { id: 'asc' },
     });
@@ -385,9 +396,10 @@ export class DteService {
 
   /** PDF oficial de la guía electrónica */
   async pdf(guiaId: number) {
-    const g = await this.prisma.guia.findUnique({ where: { id: guiaId }, select: { dtePdfPath: true, dteFolio: true } });
-    if (!g?.dtePdfPath) throw new NotFoundException('Esta guía no tiene PDF de la guía electrónica');
-    return { ruta: this.rutaSegura(g.dtePdfPath), nombre: `guia-despacho-electronica-${g.dteFolio}.pdf` };
+    const g = await this.prisma.guia.findUnique({ where: { id: guiaId }, select: { documentoSii: { select: { pdfPath: true, folio: true } } } });
+    const doc = g?.documentoSii;
+    if (!doc?.pdfPath) throw new NotFoundException('Esta guía no tiene PDF de la guía electrónica');
+    return { ruta: this.rutaSegura(doc.pdfPath), nombre: `guia-despacho-electronica-${doc.folio}.pdf` };
   }
 
   /**
@@ -396,8 +408,8 @@ export class DteService {
    */
   async pdfLote(ids: number[]): Promise<{ pdf: Buffer; incluidas: number[] }> {
     const guias = await this.prisma.guia.findMany({
-      where: { id: { in: ids }, estado: 'VIGENTE', dteEstado: 'EMITIDA', dtePdfPath: { not: null } },
-      select: { id: true, dtePdfPath: true },
+      where: { id: { in: ids }, estado: 'VIGENTE', documentoSii: { is: { estado: 'EMITIDA', pdfPath: { not: null } } } },
+      select: { id: true, documentoSii: { select: { pdfPath: true } } },
     });
     if (guias.length === 0) throw new NotFoundException('Ninguna de estas guías tiene PDF timbrado');
     const orden = new Map(ids.map((id, i) => [id, i]));
@@ -407,7 +419,7 @@ export class DteService {
     const incluidas: number[] = [];
     for (const g of guias) {
       try {
-        const origen = await PDFDocument.load(await readFile(this.rutaSegura(g.dtePdfPath!)));
+        const origen = await PDFDocument.load(await readFile(this.rutaSegura(g.documentoSii!.pdfPath!)));
         const paginas = await salida.copyPages(origen, origen.getPageIndices());
         paginas.forEach((p) => salida.addPage(p));
         incluidas.push(g.id);
@@ -421,16 +433,36 @@ export class DteService {
 
   /** PDF oficial de la factura electrónica */
   async pdfFactura(facturaId: number) {
-    const f = await this.prisma.facturaMensual.findUnique({ where: { id: facturaId }, select: { dtePdfPath: true, dteFolio: true } });
-    if (!f?.dtePdfPath) throw new NotFoundException('Esta factura no tiene PDF de la factura electrónica');
-    return { ruta: this.rutaSegura(f.dtePdfPath), nombre: `factura-electronica-${f.dteFolio}.pdf` };
+    const f = await this.prisma.facturaMensual.findUnique({ where: { id: facturaId }, select: { documentoSii: { select: { pdfPath: true, folio: true } } } });
+    const doc = f?.documentoSii;
+    if (!doc?.pdfPath) throw new NotFoundException('Esta factura no tiene PDF de la factura electrónica');
+    return { ruta: this.rutaSegura(doc.pdfPath), nombre: `factura-electronica-${doc.folio}.pdf` };
   }
 
   /** PDF oficial de la nota de crédito que anuló la factura */
   async pdfNotaCredito(facturaId: number) {
-    const n = await this.prisma.notaCredito.findUnique({ where: { facturaMensualId: facturaId }, select: { dtePdfPath: true, dteFolio: true } });
-    if (!n?.dtePdfPath) throw new NotFoundException('Esta factura no tiene PDF de nota de crédito');
-    return { ruta: this.rutaSegura(n.dtePdfPath), nombre: `nota-credito-electronica-${n.dteFolio}.pdf` };
+    const n = await this.prisma.notaCredito.findUnique({
+      where: { facturaMensualId: facturaId },
+      select: { documentoSii: { select: { pdfPath: true, folio: true } } },
+    });
+    const doc = n?.documentoSii;
+    if (!doc?.pdfPath) throw new NotFoundException('Esta factura no tiene PDF de nota de crédito');
+    return { ruta: this.rutaSegura(doc.pdfPath), nombre: `nota-credito-electronica-${doc.folio}.pdf` };
+  }
+
+  /**
+   * Suma un intento de envío al documento SII; si es el primer intento, crea el documento y lo asocia
+   * (a la guía, factura o nota de crédito) con la función "asociar".
+   */
+  private async registrarIntento(
+    tipo: 52 | 33 | 61,
+    actual: { id: number } | null,
+    asociar: (documentoSiiId: number) => Promise<unknown>,
+  ) {
+    if (actual) return this.prisma.documentoSii.update({ where: { id: actual.id }, data: { intentos: { increment: 1 } } });
+    const nuevo = await this.prisma.documentoSii.create({ data: { tipo, intentos: 1 } });
+    await asociar(nuevo.id);
+    return nuevo;
   }
 
   private rutaSegura(relativo: string): string {
@@ -455,13 +487,7 @@ export class DteService {
 
   /** Folio simulado correlativo, separado por tipo de documento (52 guía, 33 factura, 61 nota de crédito) */
   private async siguienteFolioSimulado(tipo: 52 | 33 | 61): Promise<number> {
-    const where = { dteAmbiente: 'SIMULADO' };
-    const max =
-      tipo === 52
-        ? (await this.prisma.guia.aggregate({ where, _max: { dteFolio: true } }))._max.dteFolio
-        : tipo === 33
-          ? (await this.prisma.facturaMensual.aggregate({ where, _max: { dteFolio: true } }))._max.dteFolio
-          : (await this.prisma.notaCredito.aggregate({ where, _max: { dteFolio: true } }))._max.dteFolio;
+    const max = (await this.prisma.documentoSii.aggregate({ where: { tipo, ambiente: 'SIMULADO' }, _max: { folio: true } }))._max.folio;
     return (max ?? 0) + 1;
   }
 }
