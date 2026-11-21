@@ -203,7 +203,7 @@ enum EstadoDte {
   NO_ENVIADA
   /// Emitida: tiene folio oficial y fue enviada al SII
   EMITIDA
-  /// El proveedor o el SII la rechazó (ver dteError); se puede corregir y reintentar
+  /// El proveedor o el SII la rechazó (ver documentos_sii.error); se puede corregir y reintentar
   RECHAZADA
 }
 
