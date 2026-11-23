@@ -35,6 +35,8 @@ Es el cuaderno digital: una fila por cliente y una columna por vuelta (**Mañana
 - Después de imprimir, el sistema pregunta **¿Las guías se imprimieron correctamente?** Responda **Sí** solo si salieron bien; desde ese momento una reimpresión sale marcada **COPIA**.
 - En la planilla, el N° de guía en **naranja** significa emitida sin imprimir; en **verde**, impresa.
 
+**Clientes presenciales (retiran en la panadería).** No llevan guía de despacho electrónica: al imprimir su guía, el sistema emite en el SII una **factura por ese retiro** e imprime la factura timbrada, que se entrega al cliente. Si el SII la rechaza, sale la franja **"SIN FACTURA DEL SII"**; corrija el dato y presione **Reintentar envío al SII**. Estos clientes no reciben factura mensual.
+
 **Corregir los kg de una guía ya emitida.** Anule la guía (ver sección 4), corrija los kg en la planilla y vuelva a imprimirla. La guía nueva queda como reemplazo de la anulada y su guía electrónica hace referencia a ella.
 
 **Cerrar el día.** Al terminar, **Cerrar día** bloquea los cambios. Si hay que corregir algo, **Reabrir** (queda registrado en la auditoría).
@@ -45,6 +47,7 @@ Respaldo de todas las guías: búsqueda por fecha, número o cliente.
 
 - **PDF**: abre la guía electrónica timbrada.
 - **Emitir en SII / Reintentar**: envía al SII una guía que no se pudo enviar al imprimir.
+- **Facturar retiro / Reintentar factura** (clientes presenciales): emite la factura del retiro si no se pudo al imprimir. Con factura emitida se ve **Factura** con su folio y el botón **PDF**.
 - **Anular**: pide un motivo. Si la guía ya tiene folio del SII, primero anúlela en el *Registro de Guías de Despacho* del portal del SII y luego confirme en el sistema que lo hizo; queda registrado quién y cuándo.
 
 ![Guías](img/despacho-04-guias.jpg)
@@ -63,7 +66,7 @@ Abajo se ve el total del día: kg despachados, cobrado, pagas y total a recibir.
 
 ## 6. Facturación mensual
 
-A fin de mes, cada cliente recibe una factura electrónica por todas sus guías vigentes del mes, con el IVA desglosado.
+A fin de mes, cada cliente de reparto y de pago día siguiente recibe una factura electrónica por todas sus guías vigentes del mes, con el IVA desglosado. Los clientes presenciales no aparecen aquí: se facturan en cada retiro y sus facturas se ven abajo, en **Facturas al retirar**, donde también se pueden anular (con nota de crédito).
 
 1. Elija el **Mes** y presione **Ver**.
 2. **Generar facturas pendientes** arma las facturas de todos los clientes (o **Generar** en una fila).

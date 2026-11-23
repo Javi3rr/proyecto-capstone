@@ -4,7 +4,7 @@ import type { JwtPayload } from '../common/auth.types';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { DteService } from '../dte/dte.service';
-import { AnularFacturaMensualDto, GenerarFacturasDto } from './dto/facturacion.dto';
+import { AnularFacturaMensualDto, FacturarRetirosDto, GenerarFacturasDto } from './dto/facturacion.dto';
 import { FacturacionService } from './facturacion.service';
 
 function validarMes(mes: string): string {
@@ -43,6 +43,13 @@ export class FacturacionController {
   @HttpCode(200)
   emitirMes(@Param('mes') mes: string, @CurrentUser() user: JwtPayload) {
     return this.dte.emitirFacturasMes(validarMes(mes), user.sub);
+  }
+
+  /** POST /api/facturacion/retiros/facturar { "ids": [51, 52] } → factura en el SII cada retiro de cliente presencial (al imprimir su guía) */
+  @Post('retiros/facturar')
+  @HttpCode(200)
+  facturarRetiros(@Body() dto: FacturarRetirosDto, @CurrentUser() user: JwtPayload) {
+    return this.facturacion.facturarRetiros(dto.ids, user.sub);
   }
 
   @Get('facturas/:id')

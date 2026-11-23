@@ -257,6 +257,9 @@ model FacturaMensual {
   cliente         Cliente         @relation(fields: [clienteId], references: [id])
   /// Primer día del mes facturado
   periodo         DateTime        @db.Date
+  /// true = factura de un retiro en la panadería (cliente presencial), emitida en el momento por esa sola guía;
+  /// false = factura mensual con todas las guías del mes
+  inmediata       Boolean         @default(false)
   fechaEmision    DateTime        @map("fecha_emision") @db.Date
   neto            Decimal         @db.Decimal(14, 2)
   /// 19 % del neto

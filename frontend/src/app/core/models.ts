@@ -222,6 +222,17 @@ export interface Guia {
   reemplazaAId: number | null;
   /** Factura mensual que la cobra (null = sin facturar) */
   facturaMensualId: number | null;
+  /** Solo clientes presenciales: factura electrónica de este retiro, emitida al imprimir la guía */
+  facturaRetiro: FacturaRetiroDeGuia | null;
+}
+
+export interface FacturaRetiroDeGuia {
+  id: number;
+  estado: EstadoDocumento;
+  dteEstado: EstadoDte;
+  dteFolio: number | null;
+  dteError: string | null;
+  conPdf: boolean;
 }
 
 export type EstadoDte ='NO_ENVIADA' | 'EMITIDA' | 'RECHAZADA';
@@ -317,6 +328,10 @@ export interface ResumenFacturacion {
   diasParaPlazo: number;
   preciosConIva: boolean;
   filas: FilaFacturacion[];
+  /** Facturas al retirar de los clientes presenciales del mes (una por retiro) */
+  retiros: (FacturaMensual & { cliente: { id: number; nombre: string } })[];
+  /** Guías de presenciales del mes que aún no tienen su factura emitida */
+  retirosSinFactura: number;
   totales: {
     clientes: number;
     clientesSinRut: number;

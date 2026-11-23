@@ -8,7 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ConfigDte, leerConfigDte, problemasConfig } from './dte.config';
 import type { LineaFactura } from '../facturacion/calculo';
 import { armarFactura33 } from './factura33';
-import { camposDte, datosEmision, DTE_SIN_EMITIR, guiaApi, INCLUDE_GUIA_COMPLETA } from './documento-sii';
+import { camposDte, datosEmision, DTE_SIN_EMITIR, esSoloInterna, GUIA_VA_AL_SII, guiaApi, INCLUDE_GUIA_COMPLETA } from './documento-sii';
 import { armarGuia52, GuiaParaDte } from './guia52';
 import { armarNotaCredito61 } from './notaCredito61';
 import { ErrorEmision, ProveedorDte, ProveedorOpenFactura, ProveedorSimulado, ResultadoEmision } from './proveedores';
@@ -77,6 +77,11 @@ export class DteService {
         ? { folio: docAnulada.folio, fecha: g.reemplazaA!.despacho.jornada.fecha }
         : null;
     if (g.estado === 'ANULADA') throw new ConflictException(`La guía N° ${g.id} está anulada`);
+    if (esSoloInterna(g.despacho.cliente.modalidad)) {
+      throw new BadRequestException(
+        `La guía N° ${g.id} es de un cliente presencial: retira en la panadería y no lleva guía electrónica; se emite su factura al imprimir la guía.`,
+      );
+    }
     if (g.documentoSii?.estado === 'EMITIDA') {
       throw new ConflictException(`La guía N° ${g.id} ya tiene la guía electrónica folio ${g.documentoSii.folio}`);
     }
@@ -137,7 +142,7 @@ export class DteService {
   /** Emite todas las guías vigentes del día que aún no están en el SII (una por una, respetando el límite del proveedor) */
   async emitirDia(fecha: string, usuarioId?: number) {
     const pendientes = await this.prisma.guia.findMany({
-      where: { despacho: { jornada: { fecha: fechaDesdeISO(fecha) } }, estado: 'VIGENTE', ...DTE_SIN_EMITIR },
+      where: { AND: [{ despacho: { jornada: { fecha: fechaDesdeISO(fecha) } } }, GUIA_VA_AL_SII], estado: 'VIGENTE', ...DTE_SIN_EMITIR },
       select: { id: true },
       orderBy: [{ despacho: { vuelta: 'asc' } }, { id: 'asc' }],
     });
@@ -155,7 +160,8 @@ export class DteService {
       return { total: 0, emitidas: [], errores: [], omitida: `Emisión electrónica no configurada: ${problemas.join(' ')}` };
     }
     const pendientes = await this.prisma.guia.findMany({
-      where: { id: { in: ids }, estado: 'VIGENTE', ...DTE_SIN_EMITIR },
+      // Las guías de clientes presenciales se imprimen como guía interna: no se envían
+      where: { id: { in: ids }, estado: 'VIGENTE', AND: [DTE_SIN_EMITIR, GUIA_VA_AL_SII] },
       select: { id: true },
     });
     const orden = new Map(ids.map((id, i) => [id, i]));
@@ -198,18 +204,26 @@ export class DteService {
       include: {
         cliente: { select: { nombre: true, rut: true, razonSocial: true, giro: true, direccion: true, comuna: true } },
         documentoSii: true,
-        guias: { select: { id: true, documentoSii: true, despacho: { select: { jornada: { select: { fecha: true } } } } } },
+        guias: {
+          select: {
+            id: true,
+            documentoSii: true,
+            despacho: { select: { jornada: { select: { fecha: true } }, cliente: { select: { modalidad: true } } } },
+          },
+        },
       },
     });
     if (!f) throw new NotFoundException('Factura no encontrada');
     if (f.estado === 'ANULADA') throw new ConflictException(`La factura N° ${f.id} está anulada`);
     if (f.documentoSii?.estado === 'EMITIDA') throw new ConflictException(`La factura N° ${f.id} ya tiene folio ${f.documentoSii.folio} en el SII`);
 
-    // La factura referencia todas sus guías: deben estar emitidas en el mismo ambiente (un folio de pruebas no existe en producción)
-    const conFolio = f.guias
+    // La factura referencia sus guías electrónicas: deben estar emitidas en el mismo ambiente (un folio de pruebas
+    // no existe en producción). Las guías de clientes presenciales son solo internas: se cobran sin referencia.
+    const electronicas = f.guias.filter((g) => !esSoloInterna(g.despacho.cliente.modalidad));
+    const conFolio = electronicas
       .map((g) => ({ ...camposDte(g.documentoSii), fecha: g.despacho.jornada.fecha }))
       .filter((g) => g.dteEstado === 'EMITIDA' && g.dteFolio && g.dteAmbiente === this.proveedor.nombre);
-    const sinFolio = f.guias.length - conFolio.length;
+    const sinFolio = electronicas.length - conFolio.length;
     if (sinFolio > 0) {
       throw new BadRequestException(
         `Hay ${sinFolio} guía(s) de esta factura sin folio SII en el ambiente actual (${this.proveedor.nombre}). ` +
@@ -407,10 +421,24 @@ export class DteService {
    * Solo incluye guías vigentes con PDF del proveedor (el modo simulado no entrega PDF).
    */
   async pdfLote(ids: number[]): Promise<{ pdf: Buffer; incluidas: number[] }> {
-    const guias = await this.prisma.guia.findMany({
-      where: { id: { in: ids }, estado: 'VIGENTE', documentoSii: { is: { estado: 'EMITIDA', pdfPath: { not: null } } } },
-      select: { id: true, documentoSii: { select: { pdfPath: true } } },
+    // Cada guía aporta su guía electrónica o, si es de un cliente presencial, la factura de su retiro
+    const conPdf = { is: { estado: 'EMITIDA' as const, pdfPath: { not: null } } };
+    const encontradas = await this.prisma.guia.findMany({
+      where: {
+        id: { in: ids },
+        estado: 'VIGENTE',
+        OR: [{ documentoSii: conPdf }, { facturaMensual: { is: { inmediata: true, estado: 'VIGENTE', documentoSii: conPdf } } }],
+      },
+      select: {
+        id: true,
+        documentoSii: { select: { estado: true, pdfPath: true } },
+        facturaMensual: { select: { documentoSii: { select: { pdfPath: true } } } },
+      },
     });
+    const guias = encontradas.map((g) => ({
+      id: g.id,
+      documentoSii: { pdfPath: g.documentoSii?.estado === 'EMITIDA' && g.documentoSii.pdfPath ? g.documentoSii.pdfPath : g.facturaMensual!.documentoSii!.pdfPath },
+    }));
     if (guias.length === 0) throw new NotFoundException('Ninguna de estas guías tiene PDF timbrado');
     const orden = new Map(ids.map((id, i) => [id, i]));
     guias.sort((a, b) => (orden.get(a.id) ?? 0) - (orden.get(b.id) ?? 0));
