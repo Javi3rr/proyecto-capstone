@@ -2,12 +2,11 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { ModalidadCliente, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { fechaDesdeISO } from '../common/utils';
+import { guiaApi, INCLUDE_GUIA_COMPLETA, montoLinea } from '../dte/documento-sii';
 import { PrismaService } from '../prisma/prisma.service';
 
-const INCLUDE_GUIA = {
-  cliente: { select: { id: true, nombre: true, modalidad: true, direccion: true } },
-  repartidor: { select: { id: true, nombre: true, patente: true } },
-} as const;
+/** Cliente, repartidor, fecha y vuelta vienen del despacho; los datos SII, de su documento */
+const INCLUDE_GUIA = INCLUDE_GUIA_COMPLETA;
 
 type DespachoConGuias = Prisma.DespachoGetPayload<{ include: { jornada: true; guias: true } }>;
 
@@ -19,24 +18,27 @@ export class GuiasService {
   ) {}
 
   /** Historial / búsqueda de guías */
-  listar(filtro: { fecha?: string; clienteId?: number; numero?: number; incluirAnuladas?: boolean }) {
-    return this.prisma.guia.findMany({
+  async listar(filtro: { fecha?: string; clienteId?: number; numero?: number; incluirAnuladas?: boolean }) {
+    const guias = await this.prisma.guia.findMany({
       where: {
         id: filtro.numero,
-        fecha: filtro.fecha ? fechaDesdeISO(filtro.fecha) : undefined,
-        clienteId: filtro.clienteId,
+        despacho: {
+          clienteId: filtro.clienteId,
+          jornada: filtro.fecha ? { fecha: fechaDesdeISO(filtro.fecha) } : undefined,
+        },
         estado: filtro.incluirAnuladas ? undefined : 'VIGENTE',
       },
       include: INCLUDE_GUIA,
-      orderBy: [{ fecha: 'desc' }, { vuelta: 'asc' }, { id: 'desc' }],
+      orderBy: [{ despacho: { jornada: { fecha: 'desc' } } }, { despacho: { vuelta: 'asc' } }, { id: 'desc' }],
       take: 500,
     });
+    return guias.map(guiaApi);
   }
 
   async obtener(id: number) {
     const g = await this.prisma.guia.findUnique({ where: { id }, include: INCLUDE_GUIA });
     if (!g) throw new NotFoundException('Guía no encontrada');
-    return g;
+    return guiaApi(g);
   }
 
   /** Emite la guía de una línea de la planilla (una guía vigente por cliente y vuelta) */
@@ -96,7 +98,7 @@ export class GuiasService {
     const orden = new Map(ids.map((id, i) => [id, i]));
     return guias
       .sort((a, b) => (orden.get(a.id) ?? 0) - (orden.get(b.id) ?? 0))
-      .map((g) => ({ ...g, esCopia: g.impresiones > 0 }));
+      .map((g) => ({ ...guiaApi(g), esCopia: g.impresiones > 0 }));
   }
 
   /** El usuario confirmó que las guías se imprimieron: desde ahora una reimpresión sale como "COPIA" */
@@ -137,17 +139,20 @@ export class GuiasService {
           'Anúlela primero en el portal del SII o del proveedor de facturación y luego confirme que lo hizo.',
       );
     }
-    const despues = await this.prisma.guia.update({
-      where: { id },
-      data: {
-        estado: 'ANULADA',
-        motivoAnulacion: motivo,
-        anuladaPorId: usuarioId ?? null,
-        anuladaEn: new Date(),
-        ...(enSii ? { dteAnuladaEn: new Date(), dteAnuladaPorId: usuarioId ?? null } : {}),
-      },
-      include: INCLUDE_GUIA,
-    });
+    const despues = guiaApi(
+      await this.prisma.guia.update({
+        where: { id },
+        data: {
+          estado: 'ANULADA',
+          motivoAnulacion: motivo,
+          anuladaPorId: usuarioId ?? null,
+          anuladaEn: new Date(),
+          // La anulación manual en el SII queda registrada en su documento
+          ...(enSii ? { documentoSii: { update: { anuladoEn: new Date(), anuladoPorId: usuarioId ?? null } } } : {}),
+        },
+        include: INCLUDE_GUIA,
+      }),
+    );
     await this.audit.registrarCambio(usuarioId, 'ACTUALIZAR', 'guia', id, antes, despues);
     return despues;
   }
@@ -163,14 +168,11 @@ export class GuiasService {
       data: {
         reemplazaAId: reemplaza?.id ?? null,
         despachoId: d.id,
-        clienteId: d.clienteId,
-        repartidorId: d.repartidorId,
-        fecha: d.jornada.fecha,
-        vuelta: d.vuelta,
+        // Valores del documento tal como se emite (el despacho se puede corregir después de anular la guía)
         kg: d.kg,
         kgDescuento: d.kgDescuento,
         precioKg: d.precioKg,
-        monto: d.monto,
+        monto: montoLinea(d.kg, d.kgDescuento, d.precioKg),
         creadoPorId: usuarioId ?? null,
       },
     });

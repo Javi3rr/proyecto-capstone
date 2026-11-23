@@ -19,3 +19,6 @@ backend/uploads/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Archivos de bloqueo de Office
+~$*

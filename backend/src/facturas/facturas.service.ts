@@ -86,7 +86,8 @@ export class FacturasService {
       select: { id: true, username: true },
     });
     const nombre = (id: number | null) => usuarios.find((u) => u.id === id)?.username ?? null;
-    return { ...f, creadoPor: nombre(f.creadoPorId), anuladaPor: nombre(f.anuladaPorId) };
+    const detalles = f.detalles.map((d) => ({ ...d, subtotal: d.cantidad.mul(d.costoUnitario).toDecimalPlaces(0) }));
+    return { ...f, detalles, creadoPor: nombre(f.creadoPorId), anuladaPor: nombre(f.anuladaPorId) };
   }
 
   /**
@@ -142,7 +143,8 @@ export class FacturasService {
             total,
             observacion: dto.observacion ?? null,
             creadoPorId: usuarioId ?? null,
-            detalles: { create: lineas },
+            // El subtotal de cada línea no se guarda: es cantidad × costo unitario
+            detalles: { create: lineas.map(({ subtotal: _subtotal, ...l }) => l) },
           },
         });
         for (const l of lineas) {

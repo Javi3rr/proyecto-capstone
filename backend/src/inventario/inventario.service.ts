@@ -183,7 +183,6 @@ export class InventarioService {
               productoId: d.producto.id,
               stockEsperado: d.esperado,
               stockContado: d.contado,
-              diferencia: d.diferencia,
               motivo: d.motivo,
             })),
           },
@@ -214,7 +213,7 @@ export class InventarioService {
         producto: d.producto.nombre,
         esperado: d.stockEsperado,
         contado: d.stockContado,
-        diferencia: d.diferencia,
+        diferencia: new Prisma.Decimal(d.stockContado).minus(d.stockEsperado),
         motivo: d.motivo,
       })),
     });
@@ -223,7 +222,7 @@ export class InventarioService {
 
   async listarConteos() {
     const conteos = await this.prisma.conteoInventario.findMany({
-      include: { detalles: { select: { diferencia: true, stockContado: true, producto: { select: { precioVenta: true } } } } },
+      include: { detalles: { select: { stockEsperado: true, stockContado: true, producto: { select: { precioVenta: true } } } } },
       orderBy: { fecha: 'desc' },
       take: 200,
     });
@@ -234,9 +233,9 @@ export class InventarioService {
       observacion: c.observacion,
       usuario: c.usuarioId ? (usuarios.get(c.usuarioId) ?? null) : null,
       productos: c.detalles.length,
-      conDiferencia: c.detalles.filter((d) => !new Prisma.Decimal(d.diferencia).isZero()).length,
+      conDiferencia: c.detalles.filter((d) => !new Prisma.Decimal(d.stockContado).minus(d.stockEsperado).isZero()).length,
       valorDiferencia: Math.round(
-        c.detalles.reduce((t, d) => t + Number(d.diferencia) * Number(d.producto.precioVenta), 0),
+        c.detalles.reduce((t, d) => t + new Prisma.Decimal(d.stockContado).minus(d.stockEsperado).toNumber() * Number(d.producto.precioVenta), 0),
       ),
     }));
   }
@@ -258,7 +257,8 @@ export class InventarioService {
     const usuarios = await this.nombresUsuarios([c.usuarioId]);
 
     const detalles = c.detalles.map((d) => {
-      const diferencia = Number(d.diferencia);
+      // La diferencia no se guarda: es lo contado menos lo esperado
+      const diferencia = new Prisma.Decimal(d.stockContado).minus(d.stockEsperado).toNumber();
       const precio = Number(d.producto.precioVenta);
       return {
         id: d.id,

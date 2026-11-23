@@ -3,14 +3,24 @@ import { AuditService } from '../audit/audit.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GuiasService } from './guias.service';
 
-/** Guía vigente de ejemplo; cada prueba cambia lo que necesita */
+/** Documento SII de una guía (tabla documentos_sii); null = guía solo interna */
+type Documento = { estado: 'EMITIDA' | 'RECHAZADA' | 'NO_ENVIADA'; ambiente: string; folio: number } | null;
+
+/** Guía vigente de ejemplo con la forma de la base normalizada; cada prueba cambia lo que necesita */
 const guiaBase = {
   id: 2,
   estado: 'VIGENTE',
   facturaMensualId: null as number | null,
-  dteEstado: 'NO_ENVIADA',
-  dteAmbiente: null as string | null,
-  dteFolio: null as number | null,
+  impresiones: 0,
+  documentoSii: null as Documento,
+  despacho: {
+    vuelta: 1,
+    clienteId: 4,
+    repartidorId: 2,
+    jornada: { fecha: new Date('2026-10-22') },
+    cliente: { id: 4, nombre: 'Pilar', modalidad: 'PAGO_DIA_SIGUIENTE', direccion: null },
+    repartidor: { id: 2, nombre: 'Carlos', patente: null },
+  },
 };
 
 function servicio(guia: typeof guiaBase) {
@@ -26,28 +36,29 @@ describe('GuiasService.anular', () => {
     await guias.anular(2, 'Kg mal digitados', 1);
     const data = update.mock.calls[0][0].data;
     expect(data).toMatchObject({ estado: 'ANULADA', motivoAnulacion: 'Kg mal digitados', anuladaPorId: 1 });
-    expect(data).not.toHaveProperty('dteAnuladaEn');
+    expect(data).not.toHaveProperty('documentoSii');
   });
 
   it('con folio SII exige confirmar que se anuló en el portal', async () => {
-    const { guias, update } = servicio({ ...guiaBase, dteEstado: 'EMITIDA', dteAmbiente: 'PRUEBAS', dteFolio: 103663 });
+    const { guias, update } = servicio({ ...guiaBase, documentoSii: { estado: 'EMITIDA', ambiente: 'PRUEBAS', folio: 103663 } });
     await expect(guias.anular(2, 'Kg mal digitados', 1)).rejects.toThrow(BadRequestException);
     await expect(guias.anular(2, 'Kg mal digitados', 1)).rejects.toThrow(/folio 103663/);
     expect(update).not.toHaveBeenCalled();
   });
 
-  it('con folio SII y la confirmación, la anula y registra quién confirmó la anulación en el SII', async () => {
-    const { guias, update } = servicio({ ...guiaBase, dteEstado: 'EMITIDA', dteAmbiente: 'PRODUCCION', dteFolio: 501 });
+  it('con folio SII y la confirmación, la anula y registra en su documento SII quién confirmó la anulación', async () => {
+    const { guias, update } = servicio({ ...guiaBase, documentoSii: { estado: 'EMITIDA', ambiente: 'PRODUCCION', folio: 501 } });
     await guias.anular(2, 'Kg mal digitados', 7, true);
-    const data = update.mock.calls[0][0].data;
-    expect(data).toMatchObject({ estado: 'ANULADA', dteAnuladaPorId: 7 });
-    expect(data.dteAnuladaEn).toBeInstanceOf(Date);
+    const data = update.mock.calls[0][0].data as { estado: string; documentoSii: { update: { anuladoEn: Date; anuladoPorId: number } } };
+    expect(data.estado).toBe('ANULADA');
+    expect(data.documentoSii.update.anuladoPorId).toBe(7);
+    expect(data.documentoSii.update.anuladoEn).toBeInstanceOf(Date);
   });
 
   it('un folio del modo simulado no existe en el SII: no pide confirmación', async () => {
-    const { guias, update } = servicio({ ...guiaBase, dteEstado: 'EMITIDA', dteAmbiente: 'SIMULADO', dteFolio: 1 });
+    const { guias, update } = servicio({ ...guiaBase, documentoSii: { estado: 'EMITIDA', ambiente: 'SIMULADO', folio: 1 } });
     await guias.anular(2, 'Kg mal digitados', 1);
-    expect(update.mock.calls[0][0].data).not.toHaveProperty('dteAnuladaEn');
+    expect(update.mock.calls[0][0].data).not.toHaveProperty('documentoSii');
   });
 
   it('no anula una guía incluida en una factura mensual vigente', async () => {
@@ -58,6 +69,13 @@ describe('GuiasService.anular', () => {
   it('no anula dos veces', async () => {
     const { guias } = servicio({ ...guiaBase, estado: 'ANULADA' });
     await expect(guias.anular(2, 'Kg mal digitados', 1)).rejects.toThrow(/ya está anulada/);
+  });
+
+  it('entrega la guía con fecha, vuelta, cliente y datos SII al nivel de la guía (forma de la API)', async () => {
+    const { guias } = servicio({ ...guiaBase, documentoSii: { estado: 'EMITIDA', ambiente: 'PRUEBAS', folio: 103664 } });
+    const g = await guias.obtener(2);
+    expect(g).toMatchObject({ vuelta: 1, clienteId: 4, cliente: { nombre: 'Pilar' }, dteEstado: 'EMITIDA', dteFolio: 103664 });
+    expect(g.fecha).toEqual(new Date('2026-10-22'));
   });
 });
 
@@ -70,7 +88,6 @@ describe('GuiasService.emitir (guía de una línea de la planilla)', () => {
     kg: 12,
     kgDescuento: 0,
     precioKg: 1700,
-    monto: 20400,
     jornada: { fecha: new Date('2026-11-16') },
     guias,
   });
@@ -79,16 +96,21 @@ describe('GuiasService.emitir (guía de una línea de la planilla)', () => {
     const create = jest.fn(async ({ data }: { data: Record<string, unknown> }) => ({ id: 30, ...data }));
     const prisma = {
       despacho: { findUnique: jest.fn(async () => d) },
-      guia: { create, findUnique: jest.fn(async () => ({ id: 30 })) },
+      guia: { create, findUnique: jest.fn(async () => ({ ...guiaBase, id: 30 })) },
     } as unknown as PrismaService;
     const audit = { registrarCambio: jest.fn() } as unknown as AuditService;
     return { guias: new GuiasService(prisma, audit), create };
   }
 
-  it('la primera guía de la vuelta no reemplaza a ninguna', async () => {
+  it('la primera guía de la vuelta no reemplaza a ninguna y calcula su monto (kg × precio)', async () => {
     const { guias, create } = conDespacho(despacho([]));
     await guias.emitir(9, 1);
-    expect(create.mock.calls[0][0].data).toMatchObject({ reemplazaAId: null, despachoId: 9, kg: 12 });
+    const data = create.mock.calls[0][0].data;
+    expect(data).toMatchObject({ reemplazaAId: null, despachoId: 9, kg: 12 });
+    expect(data.monto).toBe(20400);
+    // Normalizado: la guía no repite cliente, repartidor, fecha ni vuelta del despacho
+    expect(data).not.toHaveProperty('clienteId');
+    expect(data).not.toHaveProperty('fecha');
   });
 
   it('después de anular para corregir los kg, la guía nueva reemplaza a la última anulada', async () => {

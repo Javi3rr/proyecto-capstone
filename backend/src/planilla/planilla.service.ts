@@ -60,7 +60,7 @@ export class PlanillaService {
           const d = despachos.find((x) => x.clienteId === c.id && x.vuelta === v);
           if (!d) return { vuelta: v, despacho: null, guia: null };
           const { guias, ...despacho } = d;
-          return { vuelta: v, despacho, guia: guias[0] ?? null };
+          return { vuelta: v, despacho: { ...despacho, monto: calcularMonto(d.kg, d.kgDescuento, d.precioKg) }, guia: guias[0] ?? null };
         }),
       })),
     };
@@ -111,11 +111,11 @@ export class PlanillaService {
         // Tiene guías anuladas asociadas: se conserva la línea en 0 por trazabilidad
         await this.prisma.despacho.update({
           where: { id: existente.id },
-          data: { kg: 0, kgDescuento: 0, monto: 0, creadoPorId: usuario.id },
+          data: { kg: 0, kgDescuento: 0, creadoPorId: usuario.id },
         });
       }
       await this.audit.registrarCambio(usuario.id, 'ACTUALIZAR', 'despacho', existente.id,
-        { vuelta, kg: existente.kg, monto: existente.monto }, { vuelta, kg: 0 });
+        { vuelta, kg: existente.kg, monto: calcularMonto(existente.kg, existente.kgDescuento, existente.precioKg) }, { vuelta, kg: 0 });
       // Si esta vuelta llevaba el descuento diario, pasa a otra vuelta del día
       await this.redistribuirDescuento(jornada.id, clienteId);
       return { eliminado: true };
@@ -136,7 +136,6 @@ export class PlanillaService {
       kg: dto.kg,
       kgDescuento,
       precioKg: precio,
-      monto: calcularMonto(dto.kg, kgDescuento, precio),
       // Si hoy reparte uno solo, todo lo de reparto queda a su nombre
       repartidorId: cliente.modalidad === 'PRESENCIAL' ? null : (jornada.repartidorUnicoId ?? cliente.repartidorId),
       creadoPorId: usuario.id ?? null,
@@ -153,10 +152,11 @@ export class PlanillaService {
       existente ? 'ACTUALIZAR' : 'CREAR',
       'despacho',
       guardado.id,
-      existente ? { vuelta, kg: existente.kg, precioKg: existente.precioKg, monto: existente.monto } : null,
+      existente ? { vuelta, kg: existente.kg, precioKg: existente.precioKg, monto: calcularMonto(existente.kg, existente.kgDescuento, existente.precioKg) } : null,
       guardado,
     );
-    return guardado;
+    // El monto no se guarda: se calcula con kg, descuento y precio del kg
+    return { ...guardado, monto: calcularMonto(guardado.kg, guardado.kgDescuento, guardado.precioKg) };
   }
 
   /**
@@ -178,10 +178,7 @@ export class PlanillaService {
     if (!candidata) return;
     await this.prisma.despacho.update({
       where: { id: candidata.id },
-      data: {
-        kgDescuento: cliente.kgDescuentoDiario,
-        monto: calcularMonto(candidata.kg, cliente.kgDescuentoDiario, candidata.precioKg),
-      },
+      data: { kgDescuento: cliente.kgDescuentoDiario },
     });
   }
 
@@ -215,7 +212,7 @@ export class PlanillaService {
       return j;
     });
 
-    const guiasEmitidas = await this.prisma.guia.count({ where: { fecha: fechaDesdeISO(fecha), estado: 'VIGENTE' } });
+    const guiasEmitidas = await this.prisma.guia.count({ where: { despacho: { jornada: { fecha: fechaDesdeISO(fecha) } }, estado: 'VIGENTE' } });
     await this.audit.registrarCambio(usuario.id, 'ACTUALIZAR', 'jornada', jornada.id, { repartidorUnicoId: antes }, { repartidorUnicoId: repartidorId });
     return { repartidorUnicoId: jornada.repartidorUnicoId, guiasEmitidas };
   }
