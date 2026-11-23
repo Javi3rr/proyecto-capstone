@@ -5,7 +5,7 @@ Cada funcionalidad se desarrolló en una rama propia y se unió a `main` con un 
 | Repositorio | Fase | PR | Archivos cambiados | Líneas |
 |---|---|---|---|---|
 | [ortgvdev/patopan](https://github.com/ortgvdev/patopan/pulls?q=is%3Apr) | Fase 2 (base, despacho, mesón y administración) | 12 | 273 | +19221 / −2742 |
-| [Javi3rr/proyecto-capstone](https://github.com/Javi3rr/proyecto-capstone/pulls?q=is%3Apr) | Fase 3 (documentos SII, CI, normalización y entregables) | 14 | TOTF | TOTL |
+| [Javi3rr/proyecto-capstone](https://github.com/Javi3rr/proyecto-capstone/pulls?q=is%3Apr) | Fase 3 (documentos SII, CI, normalización y entregables) | 14 | 185 | +6530 / −1578 |
 
 Todos los PR están unidos (*merged*); ninguno quedó abierto ni rechazado.
 
@@ -26,7 +26,7 @@ Todos los PR están unidos (*merged*); ninguno quedó abierto ni rechazado.
 | [#11](https://github.com/Javi3rr/proyecto-capstone/pull/11) | chore: ordenar el repositorio | Mauricio Ortega | 21-11-2026 | 13 | +39 / −358 |
 | [#12](https://github.com/Javi3rr/proyecto-capstone/pull/12) | docs: manuales por rol y evidencias de trabajo y pruebas | Mauricio Ortega | 22-11-2026 | 50 | +813 / −13 |
 | [#13](https://github.com/Javi3rr/proyecto-capstone/pull/13) | Normalizar el modelo de datos (3FN) y actualizar la presentación | Mauricio Ortega | 22-11-2026 | 20 | +912 / −1058 |
-| [#14](https://github.com/Javi3rr/proyecto-capstone/pull/14) | Quitar informe final y video demostrativo de la Fase 3 | Mauricio Ortega | 22-11-2026 | P14F | P14L |
+| [#14](https://github.com/Javi3rr/proyecto-capstone/pull/14) | Quitar informe final y video demostrativo de la Fase 3 | Mauricio Ortega | 22-11-2026 | 8 | +23 / −18 |
 
 ## Fase 2 · ortgvdev/patopan
 
