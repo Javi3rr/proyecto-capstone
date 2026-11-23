@@ -78,6 +78,14 @@ describe('armarFactura33 (factura electrónica)', () => {
     ]);
   });
 
+  it('la factura de un retiro presencial (sin guía electrónica) no lleva referencias y cobra lo retirado', () => {
+    const retiro = calcularFactura([{ kg: 22, kgDescuento: 0, precioKg: 2000, monto: 44000 }], true);
+    const { dte, totales } = armarFactura33({ ...factura([]), ...retiro, fechaEmision: new Date('2026-11-22') }, config());
+    expect(dte.Referencia).toBeUndefined();
+    expect(dte.Encabezado.IdDoc.FchEmis).toBe('2026-11-22');
+    expect(totales.total).toBe(44000);
+  });
+
   it('con más de 40 guías usa una sola referencia global (límite del SII)', () => {
     const guias = Array.from({ length: 45 }, (_, i) => ({ folio: 100 + i, fecha: new Date('2026-10-05') }));
     const { dte } = armarFactura33(factura(guias), config());

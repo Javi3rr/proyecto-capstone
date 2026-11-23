@@ -2,6 +2,7 @@ import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { Component, ElementRef, OnDestroy, computed, inject, signal, viewChild } from '@angular/core';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
+import { map, switchMap } from 'rxjs';
 import { mensajeError } from '../../core/errores';
 import { Guia, NOMBRE_MODALIDAD, NOMBRE_VUELTA } from '../../core/models';
 import { LogoComponent } from '../../layout/logo.component';
@@ -34,7 +35,7 @@ import { DespachoService } from '../despacho/despacho.service';
       </span>
       <div>
         @if (pdfUrl()) {
-          <button type="button" class="pp-btn" (click)="imprimirPdf()">Imprimir guías electrónicas ({{ conPdf().length }})</button>
+          <button type="button" class="pp-btn" (click)="imprimirPdf()">Imprimir documentos SII ({{ conPdf().length }})</button>
         }
         @if (internas().length) {
           <button type="button" class="pp-btn" [class.pp-btn--secundario]="pdfUrl()" (click)="imprimir()">
@@ -47,8 +48,8 @@ import { DespachoService } from '../despacho/despacho.service';
 
     @if (!enviando() && sinFolio().length) {
       <div class="alerta-sii no-imprimir" role="alert">
-        <strong>{{ sinFolio().length }} guía(s) sin folio del SII: no salga a repartir con ellas.</strong>
-        <span>La Resolución SII 144/2026 exige que la guía esté en el SII antes de salir.</span>
+        <strong>{{ sinFolio().length }} documento(s) sin folio del SII: no entregue el pan con ellos.</strong>
+        <span>La guía de reparto debe estar en el SII antes de salir (Res. SII 144/2026) y cada retiro presencial lleva su factura.</span>
         @if (omitida()) {
           <span>{{ omitida() }}</span>
         }
@@ -80,8 +81,8 @@ import { DespachoService } from '../despacho/despacho.service';
 
     @if (pdfUrl()) {
       <section class="pdf no-imprimir">
-        <p class="pp-texto-suave">Guías de despacho electrónicas timbradas: es el documento que lleva el repartidor.</p>
-        <iframe #marcoPdf [src]="pdfUrl()" title="Guías de despacho electrónicas timbradas" (load)="pdfCargado()"></iframe>
+        <p class="pp-texto-suave">Documentos timbrados del SII: la guía de despacho que lleva el repartidor o la factura del retiro que se entrega al cliente presencial.</p>
+        <iframe #marcoPdf [src]="pdfUrl()" title="Documentos timbrados del SII" (load)="pdfCargado()"></iframe>
       </section>
     }
 
@@ -96,7 +97,9 @@ import { DespachoService } from '../despacho/despacho.service';
             <div class="marca">COPIA</div>
           }
           @if (sinFolioSii(g)) {
-            <p class="franja-sii">SIN FOLIO DEL SII · NO VÁLIDA PARA EL TRASLADO DEL PAN</p>
+            <p class="franja-sii">
+              {{ presencial(g) ? 'SIN FACTURA DEL SII · EMÍTALA ANTES DE ENTREGAR EL PAN' : 'SIN FOLIO DEL SII · NO VÁLIDA PARA EL TRASLADO DEL PAN' }}
+            </p>
           }
 
           <header class="cabecera">
@@ -148,8 +151,8 @@ import { DespachoService } from '../despacho/despacho.service';
             {{
               g.dteEstado === 'EMITIDA'
                 ? 'Respaldo interno de la guía de despacho electrónica SII N° ' + g.dteFolio
-                : soloInterna(g)
-                  ? 'Guía interna de retiro en la panadería; se cobra en la factura mensual del cliente'
+                : presencial(g)
+                  ? 'Documento interno de retiro en la panadería: la factura de este retiro aún no se emite en el SII'
                   : 'Documento interno de control de despacho, no válido como documento tributario'
             }} ·
             Emitida {{ g.creadoEn | date: 'dd-MM-yyyy HH:mm' }}
@@ -417,12 +420,16 @@ export class ImprimirGuiasComponent implements OnDestroy {
     if (this.urlPdf) URL.revokeObjectURL(this.urlPdf);
   }
 
-  /** Guía que debía ir al SII y no tiene folio. Las de clientes presenciales son solo internas: retiran en la panadería */
+  /**
+   * Retiro o reparto sin su documento SII: la guía electrónica (reparto) o, para un cliente presencial,
+   * la factura del retiro (retira en la panadería y no lleva guía electrónica)
+   */
   protected sinFolioSii(g: Guia): boolean {
-    return g.estado === 'VIGENTE' && g.dteEstado !== 'EMITIDA' && !this.soloInterna(g);
+    if (g.estado !== 'VIGENTE') return false;
+    return this.presencial(g) ? g.facturaRetiro?.dteEstado !== 'EMITIDA' : g.dteEstado !== 'EMITIDA';
   }
 
-  protected soloInterna(g: Guia): boolean {
+  protected presencial(g: Guia): boolean {
     return g.cliente.modalidad === 'PRESENCIAL';
   }
 
@@ -435,10 +442,16 @@ export class ImprimirGuiasComponent implements OnDestroy {
     );
   }
 
-  /** Envía al SII las que aún no tienen folio y luego carga lo que se imprime */
+  /**
+   * Envía al SII lo que aún no tiene folio y luego carga lo que se imprime: la guía electrónica de cada reparto
+   * y la factura de cada retiro presencial (el backend ignora en cada llamada las guías que no le corresponden)
+   */
   private enviarYCargar(aEnviar: number[], autoImprimir: boolean): void {
     this.enviando.set(true);
-    this.api.emitirDteGuias(aEnviar).subscribe({
+    this.api
+      .emitirDteGuias(aEnviar)
+      .pipe(switchMap((r) => this.api.facturarRetiros(aEnviar).pipe(map((f) => ({ ...r, errores: [...r.errores, ...f.errores] })))))
+      .subscribe({
       next: (r) => {
         const errores = new Map(this.erroresSii());
         aEnviar.forEach((id) => errores.delete(id));
@@ -460,7 +473,14 @@ export class ImprimirGuiasComponent implements OnDestroy {
     this.api.guiasParaImprimir(this.ids).subscribe({
       next: (data) => {
         this.guias.set(data);
-        const conPdf = data.filter((g) => g.estado === 'VIGENTE' && g.dteEstado === 'EMITIDA' && g.dtePdfPath).map((g) => g.id);
+        // PDF timbrado: la guía electrónica del reparto o la factura del retiro presencial
+        const conPdf = data
+          .filter(
+            (g) =>
+              g.estado === 'VIGENTE' &&
+              ((g.dteEstado === 'EMITIDA' && g.dtePdfPath) || (g.facturaRetiro?.dteEstado === 'EMITIDA' && g.facturaRetiro.conPdf)),
+          )
+          .map((g) => g.id);
         if (conPdf.length) {
           this.cargarPdf(conPdf, autoImprimir);
         } else {

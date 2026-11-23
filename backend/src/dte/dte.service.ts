@@ -79,7 +79,7 @@ export class DteService {
     if (g.estado === 'ANULADA') throw new ConflictException(`La guía N° ${g.id} está anulada`);
     if (esSoloInterna(g.despacho.cliente.modalidad)) {
       throw new BadRequestException(
-        `La guía N° ${g.id} es de un cliente presencial: retira en la panadería y su guía es solo interna (no se envía al SII).`,
+        `La guía N° ${g.id} es de un cliente presencial: retira en la panadería y no lleva guía electrónica; se emite su factura al imprimir la guía.`,
       );
     }
     if (g.documentoSii?.estado === 'EMITIDA') {
@@ -421,10 +421,24 @@ export class DteService {
    * Solo incluye guías vigentes con PDF del proveedor (el modo simulado no entrega PDF).
    */
   async pdfLote(ids: number[]): Promise<{ pdf: Buffer; incluidas: number[] }> {
-    const guias = await this.prisma.guia.findMany({
-      where: { id: { in: ids }, estado: 'VIGENTE', documentoSii: { is: { estado: 'EMITIDA', pdfPath: { not: null } } } },
-      select: { id: true, documentoSii: { select: { pdfPath: true } } },
+    // Cada guía aporta su guía electrónica o, si es de un cliente presencial, la factura de su retiro
+    const conPdf = { is: { estado: 'EMITIDA' as const, pdfPath: { not: null } } };
+    const encontradas = await this.prisma.guia.findMany({
+      where: {
+        id: { in: ids },
+        estado: 'VIGENTE',
+        OR: [{ documentoSii: conPdf }, { facturaMensual: { is: { inmediata: true, estado: 'VIGENTE', documentoSii: conPdf } } }],
+      },
+      select: {
+        id: true,
+        documentoSii: { select: { estado: true, pdfPath: true } },
+        facturaMensual: { select: { documentoSii: { select: { pdfPath: true } } } },
+      },
     });
+    const guias = encontradas.map((g) => ({
+      id: g.id,
+      documentoSii: { pdfPath: g.documentoSii?.estado === 'EMITIDA' && g.documentoSii.pdfPath ? g.documentoSii.pdfPath : g.facturaMensual!.documentoSii!.pdfPath },
+    }));
     if (guias.length === 0) throw new NotFoundException('Ninguna de estas guías tiene PDF timbrado');
     const orden = new Map(ids.map((id, i) => [id, i]));
     guias.sort((a, b) => (orden.get(a.id) ?? 0) - (orden.get(b.id) ?? 0));

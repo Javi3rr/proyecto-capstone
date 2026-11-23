@@ -1,5 +1,5 @@
 import { Transform } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsString, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsInt, IsNotEmpty, IsPositive, IsString, MaxLength, Min, MinLength, ValidateIf } from 'class-validator';
 import { textoLimpio } from '../../common/utils';
 
 export class GenerarFacturasDto {
@@ -18,4 +18,14 @@ export class AnularFacturaMensualDto {
   @MinLength(5, { message: 'Describa el motivo (mínimo 5 caracteres)' })
   @MaxLength(255)
   motivo!: string;
+}
+
+/** Guías de clientes presenciales que se facturan al retirar */
+export class FacturarRetirosDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(200)
+  @IsInt({ each: true })
+  @IsPositive({ each: true })
+  ids!: number[];
 }

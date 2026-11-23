@@ -129,7 +129,7 @@ export class GuiasService {
     if (antes.estado === 'ANULADA') throw new ConflictException('La guía ya está anulada');
     if (antes.facturaMensualId) {
       throw new ConflictException(
-        `La guía está incluida en la factura mensual N° ${antes.facturaMensualId}. Anule primero esa factura (pestaña Facturación).`,
+        `La guía está cobrada en la factura N° ${antes.facturaMensualId}${antes.facturaRetiro ? ' (factura del retiro)' : ' (factura mensual)'}. Anule primero esa factura en la pestaña Facturación.`,
       );
     }
     const enSii = antes.dteEstado === 'EMITIDA' && antes.dteAmbiente !== 'SIMULADO';

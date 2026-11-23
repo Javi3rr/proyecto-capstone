@@ -3,7 +3,7 @@ import { DocumentoSii, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { fechaDesdeISO, hoySantiago } from '../common/utils';
 import { leerConfigDte, nombreAmbiente } from '../dte/dte.config';
-import { camposDte, esSoloInterna, GUIA_SOLO_INTERNA } from '../dte/documento-sii';
+import { camposDte, esSoloInterna, GUIA_VA_AL_SII } from '../dte/documento-sii';
 import { DteService } from '../dte/dte.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularFactura, CalculoFactura, LineaFactura, plazoLegal } from './calculo';
@@ -64,19 +64,17 @@ function notaCreditoApi(
  * Facturación mensual: a fin de mes cada cliente recibe una factura (DTE 33) por todas sus guías vigentes del mes,
  * con el IVA desglosado. Cada guía queda ligada a su factura, así no se cobra dos veces.
  * Solo se facturan guías con folio SII aceptado en el ambiente actual (la factura debe referenciarlas).
+ *
+ * Los clientes presenciales no entran a la factura mensual: retiran en la panadería, sin guía de despacho
+ * electrónica, y reciben una factura por cada retiro ("factura al retirar"), que se emite al imprimir su guía.
  */
 @Injectable()
 export class FacturacionService {
   private readonly config = leerConfigDte();
   private readonly preciosConIva = this.config.preciosConIva;
   private readonly ambiente = nombreAmbiente(this.config.modo);
-  /**
-   * Condición de guía facturable: emitida en el SII en el mismo ambiente que se emitirá la factura,
-   * o guía solo interna de un cliente presencial (retira en la panadería y no se envía al SII)
-   */
-  private readonly facturable: Prisma.GuiaWhereInput = {
-    OR: [{ documentoSii: { is: { estado: 'EMITIDA' as const, ambiente: this.ambiente } } }, GUIA_SOLO_INTERNA],
-  };
+  /** Condición de guía facturable: emitida en el SII, en el mismo ambiente que se emitirá la factura */
+  private readonly conFolio = { documentoSii: { is: { estado: 'EMITIDA' as const, ambiente: this.ambiente } } };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -87,27 +85,36 @@ export class FacturacionService {
   /** Una fila por cliente con guías en el mes: su factura (si ya se generó) o el cálculo de la que corresponde */
   async resumen(mes: string) {
     const { desde, hasta } = rangoMes(mes);
-    const [guiasBase, facturas] = await Promise.all([
+    const delMes = { despacho: { jornada: { fecha: { gte: desde, lte: hasta } } }, estado: 'VIGENTE' } satisfies Prisma.GuiaWhereInput;
+    const [guiasBase, facturas, retiros, retirosSinFactura] = await Promise.all([
+      // La factura mensual cubre las guías electrónicas; las de presenciales se facturan al retirar
       this.prisma.guia.findMany({
-        where: { despacho: { jornada: { fecha: { gte: desde, lte: hasta } } }, estado: 'VIGENTE' },
+        where: { AND: [delMes, GUIA_VA_AL_SII] },
         select: {
           kg: true, kgDescuento: true, precioKg: true, monto: true, facturaMensualId: true,
-          despacho: { select: { clienteId: true, cliente: { select: { modalidad: true } } } },
+          despacho: { select: { clienteId: true } },
           documentoSii: { select: { estado: true, ambiente: true } },
         },
       }),
       this.prisma.facturaMensual.findMany({
-        where: { periodo: desde },
+        where: { periodo: desde, inmediata: false },
         include: { notaCredito: NOTA_CREDITO, documentoSii: true },
         orderBy: { id: 'asc' },
+      }),
+      this.prisma.facturaMensual.findMany({
+        where: { periodo: desde, inmediata: true },
+        include: { notaCredito: NOTA_CREDITO, documentoSii: true, cliente: { select: { id: true, nombre: true } } },
+        orderBy: [{ fechaEmision: 'asc' }, { id: 'asc' }],
+      }),
+      // Guías de presenciales sin factura vigente (no se imprimieron o el SII rechazó su factura)
+      this.prisma.guia.count({
+        where: { AND: [delMes, { NOT: GUIA_VA_AL_SII }, { NOT: { facturaMensual: { is: { estado: 'VIGENTE', documentoSii: { is: { estado: 'EMITIDA' } } } } } }] },
       }),
     ]);
     const guias = guiasBase.map((g) => ({
       ...g,
       clienteId: g.despacho.clienteId,
-      facturable:
-        esSoloInterna(g.despacho.cliente.modalidad) ||
-        (g.documentoSii?.estado === 'EMITIDA' && g.documentoSii.ambiente === this.ambiente),
+      facturable: g.documentoSii?.estado === 'EMITIDA' && g.documentoSii.ambiente === this.ambiente,
     }));
 
     const clienteIds = [...new Set([...guias.map((g) => g.clienteId), ...facturas.map((f) => f.clienteId)])];
@@ -167,6 +174,10 @@ export class FacturacionService {
       diasParaPlazo: Math.round((fechaDesdeISO(plazo).getTime() - fechaDesdeISO(hoy).getTime()) / 86_400_000),
       preciosConIva: this.preciosConIva,
       filas,
+      /** Facturas al retirar de los clientes presenciales (una por retiro) */
+      retiros: retiros.map((f) => ({ ...this.facturaApi(f), cliente: f.cliente })),
+      /** Guías de presenciales del mes que aún no tienen su factura emitida */
+      retirosSinFactura,
       totales: {
         clientes: filas.length,
         clientesSinRut: filas.filter((f) => !f.cliente.rut).length,
@@ -186,6 +197,11 @@ export class FacturacionService {
   /** Genera la factura del mes de un cliente con todas sus guías vigentes aún no facturadas */
   async generar(mes: string, clienteId: number, usuarioId?: number) {
     const { desde, hasta } = rangoMes(mes);
+    const cliente = await this.prisma.cliente.findUnique({ where: { id: clienteId }, select: { nombre: true, modalidad: true } });
+    if (!cliente) throw new NotFoundException('Cliente no encontrado');
+    if (esSoloInterna(cliente.modalidad)) {
+      throw new BadRequestException(`${cliente.nombre} es cliente presencial: se factura en cada retiro, al imprimir su guía, no a fin de mes.`);
+    }
     const factura = await this.prisma.$transaction(async (tx) => {
       const existente = await tx.facturaMensual.findFirst({ where: { clienteId, periodo: desde, estado: 'VIGENTE' } });
       if (existente) {
@@ -198,11 +214,11 @@ export class FacturacionService {
       } satisfies Prisma.GuiaWhereInput;
       const guias = (
         await tx.guia.findMany({
-          where: { AND: [pendientes, this.facturable] },
+          where: { ...pendientes, ...this.conFolio },
           select: { id: true, kg: true, kgDescuento: true, precioKg: true, monto: true, despacho: { select: { jornada: { select: { fecha: true } } } } },
         })
       ).map((g) => ({ ...g, fecha: g.despacho.jornada.fecha }));
-      const sinFolio = await tx.guia.count({ where: { AND: [pendientes, { NOT: this.facturable }] } });
+      const sinFolio = await tx.guia.count({ where: { ...pendientes, NOT: this.conFolio } });
       if (sinFolio > 0) {
         // Se factura el mes completo: no se deja una guía afuera solo porque aún no se emite en el SII
         throw new BadRequestException(
@@ -242,12 +258,82 @@ export class FacturacionService {
     return factura;
   }
 
+  /**
+   * Factura al retirar: emite en el SII una factura (DTE 33) por cada guía de cliente presencial indicada,
+   * antes de imprimirla. Si la guía ya tiene su factura sin folio (rechazo anterior), reintenta esa misma.
+   * Ignora las guías que no son de clientes presenciales o que ya tienen su factura emitida.
+   */
+  async facturarRetiros(ids: number[], usuarioId?: number) {
+    const guias = await this.prisma.guia.findMany({
+      where: { id: { in: ids }, estado: 'VIGENTE', NOT: GUIA_VA_AL_SII },
+      select: {
+        id: true, kg: true, kgDescuento: true, precioKg: true, monto: true,
+        despacho: { select: { clienteId: true, jornada: { select: { fecha: true } } } },
+        facturaMensual: { select: { id: true, estado: true, documentoSii: { select: { estado: true } } } },
+      },
+      orderBy: { id: 'asc' },
+    });
+    const emitidas: { guiaId: number; facturaId: number; folio: number | null }[] = [];
+    const errores: { guiaId: number; mensaje: string }[] = [];
+    let enviadas = 0;
+    for (const g of guias) {
+      const actual = g.facturaMensual?.estado === 'VIGENTE' ? g.facturaMensual : null;
+      if (actual?.documentoSii?.estado === 'EMITIDA') continue;
+      // Pausa entre envíos por el límite de solicitudes del proveedor
+      if (enviadas++ > 0 && this.config.modo !== 'simulado') await new Promise((r) => setTimeout(r, 400));
+      try {
+        const facturaId = actual?.id ?? (await this.crearFacturaRetiro(g, usuarioId));
+        const f = await this.dte.emitirFactura(facturaId, usuarioId);
+        emitidas.push({ guiaId: g.id, facturaId, folio: f.dteFolio });
+      } catch (e) {
+        errores.push({ guiaId: g.id, mensaje: e instanceof Error ? e.message : 'Error' });
+      }
+    }
+    return { total: enviadas, emitidas, errores };
+  }
+
+  /** Crea la factura de un retiro (una sola guía) y la deja ligada a la guía, sin emitirla aún */
+  private async crearFacturaRetiro(
+    g: {
+      id: number; kg: Prisma.Decimal; kgDescuento: Prisma.Decimal; precioKg: Prisma.Decimal; monto: Prisma.Decimal;
+      despacho: { clienteId: number; jornada: { fecha: Date } };
+    },
+    usuarioId?: number,
+  ) {
+    const fecha = g.despacho.jornada.fecha;
+    const c = calcularFactura([g], this.preciosConIva);
+    if (c.neto <= 0) throw new BadRequestException(`La guía N° ${g.id} no tiene kg cobrados`);
+    const creada = await this.prisma.$transaction(async (tx) => {
+      const f = await tx.facturaMensual.create({
+        data: {
+          clienteId: g.despacho.clienteId,
+          periodo: fechaDesdeISO(`${iso(fecha).slice(0, 7)}-01`),
+          inmediata: true,
+          fechaEmision: fecha,
+          neto: c.neto,
+          iva: c.iva,
+          total: c.total,
+          detalle: c.lineas as unknown as Prisma.InputJsonValue,
+          creadoPorId: usuarioId ?? null,
+        },
+      });
+      const { count } = await tx.guia.updateMany({
+        where: { id: g.id, estado: 'VIGENTE', facturaMensualId: null },
+        data: { facturaMensualId: f.id },
+      });
+      if (count !== 1) throw new ConflictException(`La guía N° ${g.id} cambió mientras se facturaba. Intente de nuevo.`);
+      return f;
+    });
+    await this.audit.registrarCambio(usuarioId, 'CREAR', 'factura-retiro', creada.id, null, creada);
+    return creada.id;
+  }
+
   /** Genera las facturas del mes de todos los clientes que tienen guías sin facturar y aún no tienen factura */
   async generarTodas(mes: string, usuarioId?: number) {
     const { desde, hasta } = rangoMes(mes);
     const [pendientes, conFactura] = await Promise.all([
       this.prisma.guia.findMany({
-        where: { estado: 'VIGENTE', facturaMensualId: null, despacho: { jornada: { fecha: { gte: desde, lte: hasta } } } },
+        where: { estado: 'VIGENTE', facturaMensualId: null, despacho: { jornada: { fecha: { gte: desde, lte: hasta } } }, ...GUIA_VA_AL_SII },
         select: { despacho: { select: { clienteId: true } } },
       }),
       this.prisma.facturaMensual.findMany({ where: { periodo: desde, estado: 'VIGENTE' }, select: { clienteId: true } }),

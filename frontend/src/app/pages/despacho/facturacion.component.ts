@@ -3,7 +3,7 @@ import { Component, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
 import { mensajeError } from '../../core/errores';
-import { EstadoEmisionDte, FilaFacturacion, NOMBRE_MODALIDAD, ResumenFacturacion } from '../../core/models';
+import { EstadoEmisionDte, FacturaMensual, FilaFacturacion, NOMBRE_MODALIDAD, ResumenFacturacion } from '../../core/models';
 import { DespachoService, hoyISO } from './despacho.service';
 
 /** Mes 'AAAA-MM' desplazado n meses */
@@ -292,6 +292,64 @@ function sumarMeses(mes: string, n: number): string {
             }
           </table>
         </div>
+
+        <h2 class="retiros-titulo">Facturas al retirar (clientes presenciales)</h2>
+        <p class="pp-texto-suave">
+          Los clientes presenciales retiran en la panadería y no llevan guía de despacho electrónica: cada retiro se factura
+          al imprimir su guía, por eso no aparecen en la factura mensual.
+        </p>
+        @if (d.retirosSinFactura) {
+          <p class="mes-abierto">
+            {{ d.retirosSinFactura }} retiro(s) del mes sin factura emitida: factúrelos en <a routerLink="/despacho/guias">Guías</a>.
+          </p>
+        }
+        <div class="tabla-scroll">
+          <table class="pp-tabla">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cliente</th>
+                <th class="num">N°</th>
+                <th class="num">Total</th>
+                <th>SII</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (r of d.retiros; track r.id) {
+                <tr [class.anulada]="r.estado === 'ANULADA'">
+                  <td>{{ r.fechaEmision | date: 'dd-MM-yyyy' : 'UTC' }}</td>
+                  <td>{{ r.cliente.nombre }}</td>
+                  <td class="num">{{ r.id }}</td>
+                  <td class="num">{{ r.total | currency: 'CLP' : 'symbol-narrow' : '1.0-0' }}</td>
+                  <td>
+                    @if (r.estado === 'ANULADA') {
+                      <span class="pp-chip" [title]="r.motivoAnulacion ?? ''">Anulada</span>
+                      @if (r.notaCredito?.dteEstado === 'EMITIDA') {
+                        <small> · NC folio {{ r.notaCredito?.dteFolio }}</small>
+                        <button type="button" class="enlace" [disabled]="trabajando()" (click)="verPdfNotaCredito(r.id)">PDF</button>
+                      }
+                    } @else if (r.dteEstado === 'EMITIDA') {
+                      <span class="pp-chip">Folio {{ r.dteFolio }}</span>
+                      <button type="button" class="enlace" [disabled]="trabajando()" (click)="verPdf(r.id)">PDF</button>
+                    } @else {
+                      <span class="pp-chip" [title]="r.dteError ?? ''">{{ r.dteEstado === 'RECHAZADA' ? 'Rechazada' : 'Sin emitir' }}</span>
+                    }
+                  </td>
+                  <td>
+                    @if (r.estado === 'VIGENTE') {
+                      <button type="button" class="pp-btn pp-btn--peligro pp-btn--chico" [disabled]="trabajando()" (click)="anularRetiro(r)">
+                        Anular
+                      </button>
+                    }
+                  </td>
+                </tr>
+              } @empty {
+                <tr><td colspan="6" class="pp-texto-suave">Sin retiros facturados este mes.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
       }
     </section>
   `,
@@ -322,6 +380,13 @@ function sumarMeses(mes: string, n: number): string {
       color: var(--pp-alerta);
       font-weight: 600;
       font-size: 0.86rem;
+    }
+    .retiros-titulo {
+      margin: 1.8rem 0 0.3rem;
+      font-size: 1.1rem;
+    }
+    tr.anulada td {
+      color: var(--pp-texto-suave, #888);
     }
     .mes-abierto.vencido {
       background: #fdecec;
@@ -548,6 +613,28 @@ export class FacturacionComponent {
     this.ejecutar(this.api.anularFactura(fa.id, motivo.trim()), (r) => {
       const nc = r.notaCredito?.dteEstado === 'EMITIDA' ? ` con la nota de crédito folio ${r.notaCredito.dteFolio}` : '';
       this.mensaje.set(`Factura N° ${fa.id} anulada${nc}. Puede generarla de nuevo.`);
+    });
+  }
+
+  /** Anula la factura de un retiro presencial; si tiene folio, con nota de crédito. La guía queda libre para facturarla de nuevo */
+  anularRetiro(r: FacturaMensual & { cliente: { nombre: string } }): void {
+    const avisoSii =
+      r.dteEstado === 'EMITIDA'
+        ? `\n\nTiene la factura electrónica folio ${r.dteFolio}: se emitirá en el SII una nota de crédito que la anula.`
+        : '';
+    const motivo = prompt(
+      `Anular la factura del retiro N° ${r.id} (${r.cliente.nombre}). La guía queda libre para facturarla de nuevo.${avisoSii}\n` +
+        'Indique el motivo (va en la nota de crédito y en la auditoría):',
+      '',
+    );
+    if (motivo === null) return;
+    if (motivo.trim().length < 5) {
+      this.error.set('Debe indicar un motivo de al menos 5 caracteres.');
+      return;
+    }
+    this.ejecutar(this.api.anularFactura(r.id, motivo.trim()), (x) => {
+      const nc = x.notaCredito?.dteEstado === 'EMITIDA' ? ` con la nota de crédito folio ${x.notaCredito.dteFolio}` : '';
+      this.mensaje.set(`Factura del retiro N° ${r.id} anulada${nc}.`);
     });
   }
 

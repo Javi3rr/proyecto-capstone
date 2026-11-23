@@ -148,6 +148,11 @@ export class DespachoService {
     return this.http.post<ResultadoDteGuias>('/api/dte/guias/emitir', { ids });
   }
 
+  /** Clientes presenciales: emite en el SII la factura de cada retiro (en vez de guía electrónica) */
+  facturarRetiros(ids: number[]): Observable<ResultadoDteDia> {
+    return this.http.post<ResultadoDteDia>('/api/facturacion/retiros/facturar', { ids });
+  }
+
   /** Un solo PDF con las guías electrónicas timbradas; el encabezado X-Guias-Incluidas dice cuáles trae */
   pdfDteLote(ids: number[]): Observable<HttpResponse<Blob>> {
     return this.http.get('/api/dte/guias/pdf', { params: { ids: ids.join(',') }, responseType: 'blob', observe: 'response' });

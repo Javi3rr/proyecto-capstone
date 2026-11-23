@@ -128,8 +128,28 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
                     @if (g.dteAnuladaEn) {
                       <small class="anulada-sii">Anulada en el SII (manual) · {{ g.dteAnuladaEn | date: 'dd-MM-yyyy HH:mm' }}</small>
                     }
+                  } @else if (g.cliente.modalidad === 'PRESENCIAL' && g.facturaRetiro?.dteEstado === 'EMITIDA') {
+                    @let fr = g.facturaRetiro!;
+                    <span class="pp-chip ok-chip" title="Cliente presencial: factura emitida al retirar">Factura {{ fr.dteFolio }}</span>
+                    @if (fr.conPdf) {
+                      <button type="button" class="enlace" [disabled]="trabajando()" (click)="verPdfFactura(fr.id)">PDF</button>
+                    }
                   } @else if (g.estado === 'VIGENTE' && g.cliente.modalidad === 'PRESENCIAL') {
-                    <span class="pp-chip" title="Cliente presencial: retira en la panadería. Su guía es interna y no se envía al SII.">Guía interna</span>
+                    @if (g.facturaRetiro?.dteEstado === 'RECHAZADA') {
+                      <span class="pp-chip anulada-chip" [title]="g.facturaRetiro?.dteError ?? ''">Factura rechazada</span>
+                    }
+                    <button
+                      type="button"
+                      class="pp-btn pp-btn--chico"
+                      title="Cliente presencial: no lleva guía electrónica; se emite una factura por el retiro"
+                      [disabled]="trabajando() || !sii()?.listo"
+                      (click)="facturarRetiro(g)"
+                    >
+                      {{ g.facturaRetiro ? 'Reintentar factura' : 'Facturar retiro' }}
+                    </button>
+                    @if (g.facturaRetiro?.dteEstado === 'RECHAZADA' && g.facturaRetiro?.dteError) {
+                      <small class="motivo" [title]="g.facturaRetiro?.dteError ?? ''">{{ g.facturaRetiro?.dteError }}</small>
+                    }
                   } @else if (g.estado === 'VIGENTE') {
                     @if (g.dteEstado === 'RECHAZADA') {
                       <span class="pp-chip anulada-chip" [title]="g.dteError ?? ''">Rechazada</span>
@@ -354,6 +374,43 @@ export class GuiasComponent {
         this.trabajando.set(false);
         this.error.set(`Guía N° ${g.id}: ${mensajeError(e)}`);
         this.cargar();
+      },
+    });
+  }
+
+  /** Cliente presencial: emite en el SII la factura de su retiro (no lleva guía electrónica) */
+  facturarRetiro(g: Guia): void {
+    this.trabajando.set(true);
+    this.error.set(null);
+    this.mensaje.set(null);
+    this.api.facturarRetiros([g.id]).subscribe({
+      next: (r) => {
+        this.trabajando.set(false);
+        if (r.errores.length) this.error.set(`Guía N° ${g.id}: ${r.errores[0].mensaje}`);
+        else if (r.emitidas.length) this.mensaje.set(`Retiro de la guía N° ${g.id} facturado en el SII con folio ${r.emitidas[0].folio}.`);
+        this.cargar();
+      },
+      error: (e) => {
+        this.trabajando.set(false);
+        this.error.set(`Guía N° ${g.id}: ${mensajeError(e)}`);
+        this.cargar();
+      },
+    });
+  }
+
+  /** Abre el PDF timbrado de la factura de un retiro */
+  verPdfFactura(facturaId: number): void {
+    this.trabajando.set(true);
+    this.api.pdfFactura(facturaId).subscribe({
+      next: (blob) => {
+        this.trabajando.set(false);
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      },
+      error: (e) => {
+        this.trabajando.set(false);
+        this.error.set(mensajeError(e, 'No se pudo abrir el PDF.'));
       },
     });
   }
