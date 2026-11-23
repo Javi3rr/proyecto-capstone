@@ -20,4 +20,4 @@ Commits en la rama `main` de [Javi3rr/proyecto-capstone](https://github.com/Javi
 | Cuenta compartida "Equipo Patopan" | 25 |
 | **Total** | **139** (114 cambios y 25 uniones de ramas) |
 
-Revisiones: 11 Pull Requests en Fase 3 y 12 en Fase 2, todos unidos. Pruebas: 42 pruebas automatizadas aprobadas (ver [Fase 2 · Pruebas](../../../Fase%202/Evidencias%20Grupales/4.%20Pruebas/)).
+Revisiones: 14 Pull Requests en Fase 3 y 12 en Fase 2, todos unidos. Pruebas: 43 pruebas automatizadas aprobadas (ver [Fase 2 · Pruebas](../../../Fase%202/Evidencias%20Grupales/4.%20Pruebas/)).

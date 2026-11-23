@@ -1,5 +1,18 @@
 # Bitácora del proyecto Patopan
 
+## Sesión 21 y 22-11-2026
+
+### Hecho
+- **Modelo de datos normalizado a 3FN** (PR #13):
+  - Nueva tabla `documentos_sii` para guías (52), facturas (33) y notas de crédito (61); esos datos ya no se repiten en tres tablas.
+  - La guía toma cliente, repartidor, fecha y vuelta de su despacho.
+  - Ya no se guardan valores calculables: monto del despacho, subtotales, diferencias de conteo y totales de carga.
+  - `codigo_mesonera` es clave foránea de `usuarios.codigo`: una carga con un código desconocido se rechaza con un mensaje claro.
+  - La API conserva su forma (37 rutas comparadas antes y después, sin diferencias de valores). 43 pruebas automatizadas aprobadas.
+- **Presentación:** modelo de datos con el tipo de cada campo, detalle de las pruebas automáticas y 2 computadores (despacho y mesón) en la inversión: $8.110.968, recuperación en el mes 6.
+- **Evidencias** (PR #12): manuales por rol y de instalación, evidencias de PR, CI y métricas de Trello, pruebas y conversaciones con el cliente.
+- **Orden** (PR #13 y #14): se quitan la carpeta `herramientas/` y las carpetas vacías de informe final y video de la Fase 3.
+
 ## Sesión 15 y 16-11-2026
 
 ### Hecho

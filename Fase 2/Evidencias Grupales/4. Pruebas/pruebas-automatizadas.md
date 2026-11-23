@@ -4,7 +4,7 @@ Pruebas unitarias del backend (`backend/src/**/*.spec.ts`). Cubren la lógica tr
 
 Se ejecutan con `npm test` en `backend/` y en cada Pull Request con el pipeline de integración continua.
 
-**Resultado al 21-11-2026:** Test Suites: 3 passed, 3 total · Tests: 42 passed, 42 total
+**Resultado al 22-11-2026:** Test Suites: 3 passed, 3 total · Tests: 43 passed, 43 total
 
 ### `src/facturacion/calculo.spec.ts`
 
@@ -76,13 +76,14 @@ Se ejecutan con `npm test` en `backend/` y en cada Pull Request con el pipeline 
 
 - ✅ anula una guía interna (sin folio SII) sin pedir confirmación
 - ✅ con folio SII exige confirmar que se anuló en el portal
-- ✅ con folio SII y la confirmación, la anula y registra quién confirmó la anulación en el SII
+- ✅ con folio SII y la confirmación, la anula y registra en su documento SII quién confirmó la anulación
 - ✅ un folio del modo simulado no existe en el SII: no pide confirmación
 - ✅ no anula una guía incluida en una factura mensual vigente
 - ✅ no anula dos veces
+- ✅ entrega la guía con fecha, vuelta, cliente y datos SII al nivel de la guía (forma de la API)
 
 **GuiasService.emitir (guía de una línea de la planilla)**
 
-- ✅ la primera guía de la vuelta no reemplaza a ninguna
+- ✅ la primera guía de la vuelta no reemplaza a ninguna y calcula su monto (kg × precio)
 - ✅ después de anular para corregir los kg, la guía nueva reemplaza a la última anulada
 - ✅ no crea otra guía si ya hay una vigente
