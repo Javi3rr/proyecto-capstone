@@ -1,8 +1,9 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { DocumentoSii, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { fechaDesdeISO, hoySantiago } from '../common/utils';
 import { leerConfigDte, nombreAmbiente } from '../dte/dte.config';
+import { camposDte } from '../dte/documento-sii';
 import { DteService } from '../dte/dte.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularFactura, CalculoFactura, LineaFactura, plazoLegal } from './calculo';
@@ -19,9 +20,45 @@ const CLIENTE_FACTURA = {
   select: { id: true, nombre: true, rut: true, razonSocial: true, giro: true, direccion: true, comuna: true, modalidad: true },
 } as const;
 
-const NOTA_CREDITO = {
-  select: { id: true, fecha: true, motivo: true, dteEstado: true, dteFolio: true, dteAmbiente: true, dteError: true, dtePdfPath: true },
-} as const;
+const NOTA_CREDITO = { select: { id: true, fecha: true, motivo: true, documentoSii: true } } as const;
+
+/**
+ * Kg y lo cobrado de una factura: se suman desde las líneas del documento emitido (no se guardan aparte).
+ * Así también funciona en facturas anuladas, cuyas guías quedan libres para volver a facturarse.
+ */
+function totalesDetalle(detalle: Prisma.JsonValue) {
+  const lineas = (detalle ?? []) as unknown as LineaFactura[];
+  return {
+    kg: Math.round(lineas.reduce((t, l) => t + Number(l.kg), 0) * 1000) / 1000,
+    montoGuias: lineas.reduce((t, l) => t + Math.round(Number(l.kg) * Number(l.precioKg)), 0),
+  };
+}
+
+/** Factura con lo necesario para entregarla por la API */
+type FacturaConRelaciones = Prisma.FacturaMensualGetPayload<{
+  include: { documentoSii: true; notaCredito: typeof NOTA_CREDITO };
+}>;
+
+/** Nota de crédito con la forma de la API: los datos SII aplanados y los montos de la factura que anula */
+function notaCreditoApi(
+  nc: { id: number; fecha: Date; motivo: string; documentoSii: DocumentoSii | null } | null,
+  factura: { neto: Prisma.Decimal; iva: Prisma.Decimal; total: Prisma.Decimal },
+) {
+  if (!nc) return null;
+  const { documentoSii, ...resto } = nc;
+  const d = camposDte(documentoSii);
+  return {
+    ...resto,
+    neto: factura.neto,
+    iva: factura.iva,
+    total: factura.total,
+    dteEstado: d.dteEstado,
+    dteFolio: d.dteFolio,
+    dteAmbiente: d.dteAmbiente,
+    dteError: d.dteError,
+    dtePdfPath: d.dtePdfPath,
+  };
+}
 
 /**
  * Facturación mensual: a fin de mes cada cliente recibe una factura (DTE 33) por todas sus guías vigentes del mes,
@@ -32,8 +69,9 @@ const NOTA_CREDITO = {
 export class FacturacionService {
   private readonly config = leerConfigDte();
   private readonly preciosConIva = this.config.preciosConIva;
+  private readonly ambiente = nombreAmbiente(this.config.modo);
   /** Condición de guía facturable: emitida en el SII, en el mismo ambiente que se emitirá la factura */
-  private readonly conFolio = { dteEstado: 'EMITIDA', dteAmbiente: nombreAmbiente(this.config.modo) } as const;
+  private readonly conFolio = { documentoSii: { is: { estado: 'EMITIDA' as const, ambiente: this.ambiente } } };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -44,16 +82,26 @@ export class FacturacionService {
   /** Una fila por cliente con guías en el mes: su factura (si ya se generó) o el cálculo de la que corresponde */
   async resumen(mes: string) {
     const { desde, hasta } = rangoMes(mes);
-    const [guias, facturas] = await Promise.all([
+    const [guiasBase, facturas] = await Promise.all([
       this.prisma.guia.findMany({
-        where: { fecha: { gte: desde, lte: hasta }, estado: 'VIGENTE' },
+        where: { despacho: { jornada: { fecha: { gte: desde, lte: hasta } } }, estado: 'VIGENTE' },
         select: {
-          clienteId: true, kg: true, kgDescuento: true, precioKg: true, monto: true,
-          dteEstado: true, dteAmbiente: true, facturaMensualId: true,
+          kg: true, kgDescuento: true, precioKg: true, monto: true, facturaMensualId: true,
+          despacho: { select: { clienteId: true } },
+          documentoSii: { select: { estado: true, ambiente: true } },
         },
       }),
-      this.prisma.facturaMensual.findMany({ where: { periodo: desde }, include: { notaCredito: NOTA_CREDITO }, orderBy: { id: 'asc' } }),
+      this.prisma.facturaMensual.findMany({
+        where: { periodo: desde },
+        include: { notaCredito: NOTA_CREDITO, documentoSii: true },
+        orderBy: { id: 'asc' },
+      }),
     ]);
+    const guias = guiasBase.map((g) => ({
+      ...g,
+      clienteId: g.despacho.clienteId,
+      facturable: g.documentoSii?.estado === 'EMITIDA' && g.documentoSii.ambiente === this.ambiente,
+    }));
 
     const clienteIds = [...new Set([...guias.map((g) => g.clienteId), ...facturas.map((f) => f.clienteId)])];
     const clientes = await this.prisma.cliente.findMany({
@@ -62,18 +110,16 @@ export class FacturacionService {
       orderBy: { nombre: 'asc' },
     });
 
-    const facturable = (g: (typeof guias)[number]) =>
-      g.dteEstado === this.conFolio.dteEstado && g.dteAmbiente === this.conFolio.dteAmbiente;
     const filas = clientes.map((cliente) => {
       const suyas = guias.filter((g) => g.clienteId === cliente.id);
       const pendientes = suyas.filter((g) => g.facturaMensualId === null);
-      const sinFacturar = pendientes.filter(facturable);
+      const sinFacturar = pendientes.filter((g) => g.facturable);
       const factura = facturas.find((f) => f.clienteId === cliente.id && f.estado === 'VIGENTE') ?? null;
       const calculo: CalculoFactura = factura
         ? {
+            // Todo sale del documento emitido: líneas, neto, IVA y total; kg y lo cobrado se suman desde sus líneas
+            ...totalesDetalle(factura.detalle),
             lineas: factura.detalle as unknown as LineaFactura[],
-            kg: Number(factura.kg),
-            montoGuias: Number(factura.montoGuias),
             neto: Number(factura.neto),
             iva: Number(factura.iva),
             total: Number(factura.total),
@@ -87,10 +133,15 @@ export class FacturacionService {
         /** Guías con folio que no están en ninguna factura (si ya hay factura: guías emitidas después de generarla) */
         guiasSinFacturar: sinFacturar.length,
         ...calculo,
-        factura: factura && { ...factura, detalle: undefined },
+        factura: factura && this.facturaApi(factura),
         facturasAnuladas: facturas
           .filter((f) => f.clienteId === cliente.id && f.estado === 'ANULADA')
-          .map((f) => ({ id: f.id, dteFolio: f.dteFolio, motivoAnulacion: f.motivoAnulacion, notaCredito: f.notaCredito })),
+          .map((f) => ({
+            id: f.id,
+            dteFolio: f.documentoSii?.folio ?? null,
+            motivoAnulacion: f.motivoAnulacion,
+            notaCredito: notaCreditoApi(f.notaCredito, f),
+          })),
       };
     });
 
@@ -133,11 +184,17 @@ export class FacturacionService {
       if (existente) {
         throw new ConflictException(`El cliente ya tiene la factura N° ${existente.id} de ese mes. Anúlela para generarla de nuevo.`);
       }
-      const pendientes = { clienteId, estado: 'VIGENTE', facturaMensualId: null, fecha: { gte: desde, lte: hasta } } as const;
-      const guias = await tx.guia.findMany({
-        where: { ...pendientes, ...this.conFolio },
-        select: { id: true, fecha: true, kg: true, kgDescuento: true, precioKg: true, monto: true },
-      });
+      const pendientes = {
+        estado: 'VIGENTE',
+        facturaMensualId: null,
+        despacho: { clienteId, jornada: { fecha: { gte: desde, lte: hasta } } },
+      } satisfies Prisma.GuiaWhereInput;
+      const guias = (
+        await tx.guia.findMany({
+          where: { ...pendientes, ...this.conFolio },
+          select: { id: true, kg: true, kgDescuento: true, precioKg: true, monto: true, despacho: { select: { jornada: { select: { fecha: true } } } } },
+        })
+      ).map((g) => ({ ...g, fecha: g.despacho.jornada.fecha }));
       const sinFolio = await tx.guia.count({ where: { ...pendientes, NOT: this.conFolio } });
       if (sinFolio > 0) {
         // Se factura el mes completo: no se deja una guía afuera solo porque aún no se emite en el SII
@@ -160,8 +217,6 @@ export class FacturacionService {
           clienteId,
           periodo: desde,
           fechaEmision,
-          kg: c.kg,
-          montoGuias: c.montoGuias,
           neto: c.neto,
           iva: c.iva,
           total: c.total,
@@ -174,7 +229,7 @@ export class FacturacionService {
         data: { facturaMensualId: creada.id },
       });
       if (count !== guias.length) throw new ConflictException('Las guías cambiaron mientras se generaba la factura. Intente de nuevo.');
-      return creada;
+      return { ...creada, kg: c.kg, montoGuias: c.montoGuias };
     });
     await this.audit.registrarCambio(usuarioId, 'CREAR', 'factura-mensual', factura.id, null, factura);
     return factura;
@@ -185,17 +240,17 @@ export class FacturacionService {
     const { desde, hasta } = rangoMes(mes);
     const [pendientes, conFactura] = await Promise.all([
       this.prisma.guia.findMany({
-        where: { estado: 'VIGENTE', facturaMensualId: null, fecha: { gte: desde, lte: hasta } },
-        select: { clienteId: true },
-        distinct: ['clienteId'],
+        where: { estado: 'VIGENTE', facturaMensualId: null, despacho: { jornada: { fecha: { gte: desde, lte: hasta } } } },
+        select: { despacho: { select: { clienteId: true } } },
       }),
       this.prisma.facturaMensual.findMany({ where: { periodo: desde, estado: 'VIGENTE' }, select: { clienteId: true } }),
     ]);
     const yaFacturados = new Set(conFactura.map((f) => f.clienteId));
+    const clientes = [...new Set(pendientes.map((p) => p.despacho.clienteId))].filter((id) => !yaFacturados.has(id));
 
     const creadas: number[] = [];
     const errores: { clienteId: number; mensaje: string }[] = [];
-    for (const { clienteId } of pendientes.filter((p) => !yaFacturados.has(p.clienteId))) {
+    for (const clienteId of clientes) {
       try {
         creadas.push((await this.generar(mes, clienteId, usuarioId)).id);
       } catch (e) {
@@ -210,18 +265,39 @@ export class FacturacionService {
       where: { id },
       include: {
         cliente: CLIENTE_FACTURA,
+        documentoSii: true,
         guias: {
           select: {
-            id: true, fecha: true, vuelta: true, kg: true, kgDescuento: true, precioKg: true, monto: true,
-            dteEstado: true, dteFolio: true,
+            id: true, kg: true, kgDescuento: true, precioKg: true, monto: true,
+            documentoSii: { select: { estado: true, folio: true } },
+            despacho: { select: { vuelta: true, jornada: { select: { fecha: true } } } },
           },
-          orderBy: [{ fecha: 'asc' }, { vuelta: 'asc' }],
+          orderBy: [{ despacho: { jornada: { fecha: 'asc' } } }, { despacho: { vuelta: 'asc' } }],
         },
         notaCredito: NOTA_CREDITO,
       },
     });
     if (!f) throw new NotFoundException('Factura no encontrada');
-    return f;
+    const guias = f.guias.map(({ despacho, documentoSii, ...g }) => ({
+      ...g,
+      fecha: despacho.jornada.fecha,
+      vuelta: despacho.vuelta,
+      dteEstado: documentoSii?.estado ?? 'NO_ENVIADA',
+      dteFolio: documentoSii?.folio ?? null,
+    }));
+    return { ...this.facturaApi(f, true), cliente: f.cliente, guias };
+  }
+
+  /** Factura con la forma de la API: datos SII aplanados, kg y lo cobrado sumados desde sus guías */
+  private facturaApi(f: FacturaConRelaciones, conDetalle = false) {
+    const { documentoSii, notaCredito, detalle, ...resto } = f;
+    return {
+      ...resto,
+      ...totalesDetalle(detalle),
+      detalle: conDetalle ? detalle : undefined,
+      ...camposDte(documentoSii),
+      notaCredito: notaCreditoApi(notaCredito, f),
+    };
   }
 
   /**

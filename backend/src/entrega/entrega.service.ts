@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ModalidadCliente } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { fechaDesdeISO, hoySantiago } from '../common/utils';
+import { calcularMonto } from '../common/montos';
 import { PrismaService } from '../prisma/prisma.service';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -73,11 +74,23 @@ export class EntregaService {
         where: { fecha: { lte: fechaD } },
         select: { id: true, fecha: true, cerrada: true, repartidorUnicoId: true },
       }),
-      this.prisma.despacho.groupBy({
-        by: ['clienteId', 'jornadaId'],
-        where: { kg: { gt: 0 }, jornada: { fecha: { lte: fechaD } } },
-        _sum: { kg: true, monto: true },
-      }),
+      // El monto no se guarda: se suma por cliente y día a partir de kg, descuento y precio de cada línea
+      this.prisma.despacho
+        .findMany({
+          where: { kg: { gt: 0 }, jornada: { fecha: { lte: fechaD } } },
+          select: { clienteId: true, jornadaId: true, kg: true, kgDescuento: true, precioKg: true },
+        })
+        .then((lineas) => {
+          const porClienteYDia = new Map<string, { clienteId: number; jornadaId: number; _sum: { kg: number; monto: number } }>();
+          for (const l of lineas) {
+            const clave = `${l.clienteId}-${l.jornadaId}`;
+            const g = porClienteYDia.get(clave) ?? { clienteId: l.clienteId, jornadaId: l.jornadaId, _sum: { kg: 0, monto: 0 } };
+            g._sum.kg += Number(l.kg);
+            g._sum.monto += calcularMonto(l.kg, l.kgDescuento, l.precioKg).toNumber();
+            porClienteYDia.set(clave, g);
+          }
+          return [...porClienteYDia.values()];
+        }),
       this.prisma.noPago.findMany({ where: { fecha: { lte: fechaD } } }),
     ]);
 

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ModalidadCliente } from '@prisma/client';
 import { fechaDesdeISO } from '../common/utils';
+import { calcularMonto } from '../common/montos';
 import { PrismaService } from '../prisma/prisma.service';
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -91,7 +92,7 @@ export class ReportesService {
         kg: Number(f.kg),
         kgDescuento: Number(f.kgDescuento),
         precioKg: Number(f.precioKg),
-        monto: Number(f.monto),
+        monto: calcularMonto(f.kg, f.kgDescuento, f.precioKg).toNumber(),
         guias: f.guias,
         registradoPor: f.creadoPorId ? (nombreUsuario.get(f.creadoPorId) ?? null) : null,
         actualizadoEn: f.actualizadoEn,

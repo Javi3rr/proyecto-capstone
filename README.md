@@ -21,7 +21,6 @@ Documentación: [Arquitectura](docs/arquitectura.md) · [Modelo de datos](docs/m
 | `backend/` | API REST (NestJS + Prisma), migraciones y pruebas automatizadas |
 | `frontend/` | Aplicación web (Angular) y su servidor Nginx |
 | `docs/` | Documentación técnica vigente: arquitectura, modelo de datos e informe de balanzas |
-| `herramientas/` | Utilidades de apoyo, como la simulación de ventas de las balanzas |
 | `.github/workflows/` | Pipeline de integración continua (GitHub Actions) |
 | `Fase 1/`, `Fase 2/`, `Fase 3/` | Evidencias del ramo por fase: grupales e individuales |
 
