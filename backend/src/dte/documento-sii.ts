@@ -42,6 +42,16 @@ export const DTE_EMITIDO = { documentoSii: { is: { estado: 'EMITIDA' as const } 
 /** Filtro Prisma: aún no tiene folio (sin documento, o enviado sin éxito) */
 export const DTE_SIN_EMITIR = { NOT: { documentoSii: { is: { estado: 'EMITIDA' as const } } } };
 
+/**
+ * Los clientes presenciales retiran el pan en la panadería: su guía es solo interna y no se envía al SII.
+ * Decisión del cliente (22-11-2026): el proveedor exige chofer, patente y transportista en toda guía electrónica,
+ * aunque sea un retiro sin traslado de la panadería, y esos datos no existen para quien retira.
+ */
+export const GUIA_SOLO_INTERNA = { despacho: { cliente: { modalidad: 'PRESENCIAL' as const } } };
+/** Filtro Prisma: la guía va al SII (no es de un cliente presencial) */
+export const GUIA_VA_AL_SII = { NOT: GUIA_SOLO_INTERNA };
+export const esSoloInterna = (modalidad: string) => modalidad === 'PRESENCIAL';
+
 /** Monto de una línea de despacho: máx(kg − kg sin costo, 0) × precio del kg, redondeado a pesos */
 export function montoLinea(kg: Prisma.Decimal | number, kgDescuento: Prisma.Decimal | number, precioKg: Prisma.Decimal | number): number {
   return calcularMonto(kg, kgDescuento, precioKg).toNumber();

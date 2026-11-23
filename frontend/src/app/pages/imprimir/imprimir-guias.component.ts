@@ -145,7 +145,13 @@ import { DespachoService } from '../despacho/despacho.service';
 
           <p class="aviso">Cliente: verifique el peso del pan al recibirlo. Ante cualquier diferencia, comuníquese con la panadería.</p>
           <p class="legal">
-            {{ g.dteEstado === 'EMITIDA' ? 'Respaldo interno de la guía de despacho electrónica SII N° ' + g.dteFolio : 'Documento interno de control de despacho, no válido como documento tributario' }} ·
+            {{
+              g.dteEstado === 'EMITIDA'
+                ? 'Respaldo interno de la guía de despacho electrónica SII N° ' + g.dteFolio
+                : soloInterna(g)
+                  ? 'Guía interna de retiro en la panadería; se cobra en la factura mensual del cliente'
+                  : 'Documento interno de control de despacho, no válido como documento tributario'
+            }} ·
             Emitida {{ g.creadoEn | date: 'dd-MM-yyyy HH:mm' }}
             @if (g.estado === 'ANULADA') {
               · Anulada: {{ g.motivoAnulacion }}
@@ -411,8 +417,13 @@ export class ImprimirGuiasComponent implements OnDestroy {
     if (this.urlPdf) URL.revokeObjectURL(this.urlPdf);
   }
 
+  /** Guía que debía ir al SII y no tiene folio. Las de clientes presenciales son solo internas: retiran en la panadería */
   protected sinFolioSii(g: Guia): boolean {
-    return g.estado === 'VIGENTE' && g.dteEstado !== 'EMITIDA';
+    return g.estado === 'VIGENTE' && g.dteEstado !== 'EMITIDA' && !this.soloInterna(g);
+  }
+
+  protected soloInterna(g: Guia): boolean {
+    return g.cliente.modalidad === 'PRESENCIAL';
   }
 
   /** Vuelve a enviar al SII las guías que quedaron sin folio */

@@ -3,7 +3,7 @@ import { DocumentoSii, Prisma } from '@prisma/client';
 import { AuditService } from '../audit/audit.service';
 import { fechaDesdeISO, hoySantiago } from '../common/utils';
 import { leerConfigDte, nombreAmbiente } from '../dte/dte.config';
-import { camposDte } from '../dte/documento-sii';
+import { camposDte, esSoloInterna, GUIA_SOLO_INTERNA } from '../dte/documento-sii';
 import { DteService } from '../dte/dte.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { calcularFactura, CalculoFactura, LineaFactura, plazoLegal } from './calculo';
@@ -70,8 +70,13 @@ export class FacturacionService {
   private readonly config = leerConfigDte();
   private readonly preciosConIva = this.config.preciosConIva;
   private readonly ambiente = nombreAmbiente(this.config.modo);
-  /** Condición de guía facturable: emitida en el SII, en el mismo ambiente que se emitirá la factura */
-  private readonly conFolio = { documentoSii: { is: { estado: 'EMITIDA' as const, ambiente: this.ambiente } } };
+  /**
+   * Condición de guía facturable: emitida en el SII en el mismo ambiente que se emitirá la factura,
+   * o guía solo interna de un cliente presencial (retira en la panadería y no se envía al SII)
+   */
+  private readonly facturable: Prisma.GuiaWhereInput = {
+    OR: [{ documentoSii: { is: { estado: 'EMITIDA' as const, ambiente: this.ambiente } } }, GUIA_SOLO_INTERNA],
+  };
 
   constructor(
     private readonly prisma: PrismaService,
@@ -87,7 +92,7 @@ export class FacturacionService {
         where: { despacho: { jornada: { fecha: { gte: desde, lte: hasta } } }, estado: 'VIGENTE' },
         select: {
           kg: true, kgDescuento: true, precioKg: true, monto: true, facturaMensualId: true,
-          despacho: { select: { clienteId: true } },
+          despacho: { select: { clienteId: true, cliente: { select: { modalidad: true } } } },
           documentoSii: { select: { estado: true, ambiente: true } },
         },
       }),
@@ -100,7 +105,9 @@ export class FacturacionService {
     const guias = guiasBase.map((g) => ({
       ...g,
       clienteId: g.despacho.clienteId,
-      facturable: g.documentoSii?.estado === 'EMITIDA' && g.documentoSii.ambiente === this.ambiente,
+      facturable:
+        esSoloInterna(g.despacho.cliente.modalidad) ||
+        (g.documentoSii?.estado === 'EMITIDA' && g.documentoSii.ambiente === this.ambiente),
     }));
 
     const clienteIds = [...new Set([...guias.map((g) => g.clienteId), ...facturas.map((f) => f.clienteId)])];
@@ -191,11 +198,11 @@ export class FacturacionService {
       } satisfies Prisma.GuiaWhereInput;
       const guias = (
         await tx.guia.findMany({
-          where: { ...pendientes, ...this.conFolio },
+          where: { AND: [pendientes, this.facturable] },
           select: { id: true, kg: true, kgDescuento: true, precioKg: true, monto: true, despacho: { select: { jornada: { select: { fecha: true } } } } },
         })
       ).map((g) => ({ ...g, fecha: g.despacho.jornada.fecha }));
-      const sinFolio = await tx.guia.count({ where: { ...pendientes, NOT: this.conFolio } });
+      const sinFolio = await tx.guia.count({ where: { AND: [pendientes, { NOT: this.facturable }] } });
       if (sinFolio > 0) {
         // Se factura el mes completo: no se deja una guía afuera solo porque aún no se emite en el SII
         throw new BadRequestException(

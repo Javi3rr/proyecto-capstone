@@ -128,6 +128,8 @@ import { DespachoService, abrirImpresionGuias, hoyISO } from './despacho.service
                     @if (g.dteAnuladaEn) {
                       <small class="anulada-sii">Anulada en el SII (manual) · {{ g.dteAnuladaEn | date: 'dd-MM-yyyy HH:mm' }}</small>
                     }
+                  } @else if (g.estado === 'VIGENTE' && g.cliente.modalidad === 'PRESENCIAL') {
+                    <span class="pp-chip" title="Cliente presencial: retira en la panadería. Su guía es interna y no se envía al SII.">Guía interna</span>
                   } @else if (g.estado === 'VIGENTE') {
                     @if (g.dteEstado === 'RECHAZADA') {
                       <span class="pp-chip anulada-chip" [title]="g.dteError ?? ''">Rechazada</span>
